@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import List, Tuple, Optional, Iterable
 import random
 
 
@@ -154,29 +154,7 @@ ZONES: List[Zone] = [
 
 
 # ---------------------------
-# INTERNAL HELPERS
-# ---------------------------
-
-def _clamp_rgb(rgb: Tuple[float, float, float]) -> Tuple[float, float, float]:
-    return tuple(max(0.0, min(1.0, float(x))) for x in rgb)  # type: ignore
-
-def _iter_hours_in_ranges(ranges: Iterable[Tuple[int, int]]) -> Iterable[int]:
-    for start, end in ranges:
-        start %= 24
-        end %= 24
-        if start < end:
-            for h in range(start, end):
-                yield h
-        else:
-            # wrap-around (z.B. 21-24 + 0-6 ist hier nicht nötig, aber robust)
-            for h in range(start, 24):
-                yield h
-            for h in range(0, end):
-                yield h
-
-
-# ---------------------------
-# PUBLIC API: TIME -> ZONE -> MISSION
+# CORE API
 # ---------------------------
 
 def get_zone_for_hour(hour: int) -> Zone:
@@ -185,39 +163,18 @@ def get_zone_for_hour(hour: int) -> Zone:
         for start, end in z.time_ranges:
             if start <= h < end:
                 return z
-    return ZONES[0]  # Fallback: Wachturm
+    return ZONES[0]
 
 
-def pick_mission_for_time(
-    hour: int,
-    difficulty: int,
-    seed: int,
-    *,
-    avoid_repeat: bool = True,
-    page_index: int = 0,
-) -> Mission:
-    """
-    Deterministische Mission-Auswahl pro Seite.
-    - difficulty: 1..5
-    - seed: Basis-Seed (Reproduzierbarkeit)
-    - avoid_repeat: versucht Wiederholungen in der Zone zu vermeiden (best effort)
-    - page_index: damit Seite 1..N unterschiedliche Picks bekommen
-    """
+def pick_mission_for_time(hour: int, difficulty: int, seed: int, *, page_index: int = 0) -> Mission:
     z = get_zone_for_hour(hour)
-
-    diff = int(max(1, min(5, difficulty)))
     rng = random.Random(int(seed) + int(page_index) * 10007)
 
+    diff = max(1, min(5, int(difficulty)))
     pool = [m for m in z.missions if m.difficulty <= diff] or z.missions
 
-    if not avoid_repeat or len(pool) <= 1:
-        return rng.choice(pool)
-
-    # "No-repeat": deterministic rotate/shuffle
-    shuffled = pool[:]
-    rng.shuffle(shuffled)
-    idx = (int(seed) + int(page_index)) % len(shuffled)
-    return shuffled[idx]
+    rng.shuffle(pool)
+    return pool[(int(seed) + int(page_index)) % len(pool)]
 
 
 def fmt_hour(hour: int) -> str:
@@ -225,88 +182,39 @@ def fmt_hour(hour: int) -> str:
 
 
 # ---------------------------
-# VALIDATION (optional but recommended)
+# VALIDATION (optional)
 # ---------------------------
 
-def validate_quest_db(raise_on_error: bool = False) -> List[str]:
-    """
-    Gibt eine Liste von Warnungen/Fehlern zurück.
-    Wenn raise_on_error=True und es gibt Fehler -> ValueError.
-    """
+def validate_quest_db() -> List[str]:
     issues: List[str] = []
 
-    # Unique Zone IDs
+    # unique zone ids
     zone_ids = [z.id for z in ZONES]
     if len(zone_ids) != len(set(zone_ids)):
         issues.append("Zone IDs sind nicht eindeutig.")
 
-    # Unique Mission IDs across all zones
-    mission_ids: List[str] = [m.id for z in ZONES for m in z.missions]
+    # unique mission ids (global)
+    mission_ids = [m.id for z in ZONES for m in z.missions]
     if len(mission_ids) != len(set(mission_ids)):
         issues.append("Mission IDs sind nicht eindeutig (global).")
 
-    # Validate ranges and cover set (soft check)
-    covered: set[int] = set()
+    # sanity checks
     for z in ZONES:
-        # clamp color
-        _ = _clamp_rgb(z.color)
-
         if not z.time_ranges:
             issues.append(f"Zone '{z.id}' hat keine time_ranges.")
-            continue
-
-        for start, end in z.time_ranges:
-            if not (0 <= start <= 24 and 0 <= end <= 24):
-                issues.append(f"Zone '{z.id}' hat ungültige time_range ({start},{end}).")
-            if start == end:
-                issues.append(f"Zone '{z.id}' hat eine leere time_range ({start},{end}).")
-
-        # add covered hours (best-effort)
-        for h in _iter_hours_in_ranges(z.time_ranges):
-            covered.add(h)
-
-        # mission sanity
         for m in z.missions:
             if not (1 <= m.difficulty <= 5):
-                issues.append(f"Mission '{m.id}' in Zone '{z.id}' hat difficulty außerhalb 1..5.")
+                issues.append(f"Mission '{m.id}' hat difficulty außerhalb 1..5.")
             if m.xp < 0:
-                issues.append(f"Mission '{m.id}' in Zone '{z.id}' hat negatives XP.")
+                issues.append(f"Mission '{m.id}' hat negatives XP.")
             if not m.title.strip():
-                issues.append(f"Mission '{m.id}' in Zone '{z.id}' hat leeren Titel.")
-
-    # Soft coverage check: should cover most of day
-    if len(covered) < 18:
-        issues.append(f"Warnung: nur {len(covered)}/24 Stunden sind durch time_ranges abgedeckt.")
-
-    if raise_on_error and issues:
-        raise ValueError("Quest DB Validation failed:\n- " + "\n- ".join(issues))
+                issues.append(f"Mission '{m.id}' hat leeren Titel.")
 
     return issues
 
 
 # ---------------------------
-# UI HELPERS (optional)
-# ---------------------------
-
-def list_zones() -> List[Tuple[str, str]]:
-    """Für Dropdowns: [(zone_id, '🏰 Der Wachturm'), ...]"""
-    return [(z.id, f"{z.icon} {z.name}") for z in ZONES]
-
-def get_zone_by_id(zone_id: str) -> Optional[Zone]:
-    zid = (zone_id or "").strip()
-    for z in ZONES:
-        if z.id == zid:
-            return z
-    return None
-
-def summarize_zone(zone: Zone) -> str:
-    """Kurztext für UI/Logs."""
-    return f"{zone.icon} {zone.name} · {zone.quest_type} · {zone.atmosphere}"
-
-
-# ---------------------------
 # COMPAT LAYER (WICHTIG!)
 # ---------------------------
-# Damit ALTE app.py und NEUE app.py Imports funktionieren:
 zone_for_hour = get_zone_for_hour
 pick_mission = pick_mission_for_time
