@@ -1,5 +1,5 @@
 """
-Eddie's Welt – Quest Edition (v2.3)
+Eddie's Welt – Quest Edition (v2.3.2)
 - 24 Seiten (00–23 Uhr)
 - Quest-System (Zonen + Missionen) aus quest_data.py
 - 24-Stunden-Farb-System via get_hour_color(hour)
@@ -8,6 +8,9 @@ Eddie's Welt – Quest Edition (v2.3)
 - KDP-Modus: 8.5"x8.5" Trim + 0.125" Bleed (PDF: 8.75"x8.75")
 - Safe Zone: 0.375" vom Trim-Rand => (Bleed + 0.375") vom PDF-Rand
 - Preflight Ampel (Bleed/Safe/PDF-Size/DPI/Debug)
+- Optional: S/W-optimierter Header (für günstigen Druck)
+- Frontmatter: Seite 1+2 zusammengelegt -> NÄCHSTE Seite ist direkt 00:00
+- Optional: Mini-Skizzenbild aus erstem Upload-Foto auf Startseite
 """
 
 import streamlit as st
@@ -26,7 +29,6 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 
-# QUEST IMPORTS (muss im selben Ordner liegen)
 from quest_data import (
     get_zone_for_hour,
     pick_mission_for_time,
@@ -49,6 +51,91 @@ def _best_text_color(rgb):
     r, g, b = rgb
     luminance = (0.299 * r + 0.587 * g + 0.114 * b)
     return colors.black if luminance > 0.55 else colors.white
+
+
+# -------- S/W Optimierung (Header)
+def _bw_header_shade_from_hour(hour: int) -> float:
+    """
+    Liefert eine gut druckbare Graustufe (0..1).
+    Tagsüber hell (Text schwarz), nachts dunkel (Text weiß).
+    """
+    h = hour % 24
+    if 6 <= h < 21:
+        return 0.88
+    return 0.22
+
+
+def _bw_text_color_for_shade(shade: float):
+    return colors.black if shade >= 0.6 else colors.white
+
+
+def _header_style_index_for_zone(zone_id: str) -> int:
+    mapping = {
+        "wachturm": 0,
+        "wilder_pfad": 1,
+        "taverne": 2,
+        "werkstatt": 3,
+        "arena": 4,
+        "ratssaal": 5,
+        "quellen": 6,
+        "trauminsel": 7,
+    }
+    return mapping.get(zone_id, 0)
+
+
+def _draw_header_pattern(c, x, y, w, h, style: int):
+    """
+    S/W Muster für Zonen-Unterscheidung.
+    Zeichnet dünne Linien (druckt gut, kaum Dateigröße).
+    """
+    c.saveState()
+    c.setLineWidth(0.7)
+    c.setStrokeColor(colors.black)
+    step = 10
+
+    if style == 0:
+        i = -int(h)
+        while i < int(w):
+            c.line(x + i, y, x + i + h, y + h)
+            i += step
+    elif style == 1:
+        i = 0
+        while i < int(w + h):
+            c.line(x + i, y, x + i - h, y + h)
+            i += step
+    elif style == 2:
+        j = 0
+        while j < int(h):
+            c.line(x, y + j, x + w, y + j)
+            j += step
+    elif style == 3:
+        i = 0
+        while i < int(w):
+            c.line(x + i, y, x + i, y + h)
+            i += step
+    elif style == 4:
+        j = 0
+        while j < int(h):
+            c.line(x, y + j, x + w, y + j)
+            j += step
+        i = 0
+        while i < int(w):
+            c.line(x + i, y, x + i, y + h)
+            i += step
+    elif style == 5:
+        i = -int(h)
+        while i < int(w):
+            c.line(x + i, y, x + i + h, y + h)
+            i += step * 2
+    elif style == 6:
+        i = 0
+        while i < int(w + h):
+            c.line(x + i, y, x + i - h, y + h)
+            i += step * 2
+    else:
+        c.rect(x + 4, y + 4, w - 8, h - 8, stroke=1, fill=0)
+
+    c.restoreState()
 
 
 def _draw_debug_overlay(c, w, h, kdp_mode, margin, bleed=0.0):
@@ -176,7 +263,7 @@ def zeichne_suchspiel(c, width, y_start, img_height, anzahl):
     c.drawString(100, leg_y, f"x {anzahl}")
 
 
-def _kdp_traffic_light(*, kdp_mode, bleed_in, safe_mm, pdf_mb, budget_mb, dpi, debug):
+def _kdp_traffic_light(*, kdp_mode, bleed_in, safe_mm, pdf_mb, budget_mb, dpi, debug, bw_mode=False):
     checks = []
     if not kdp_mode:
         checks.append(("red", "KDP-Modus ist AUS (Interior nicht KDP-ready)."))
@@ -206,6 +293,11 @@ def _kdp_traffic_light(*, kdp_mode, bleed_in, safe_mm, pdf_mb, budget_mb, dpi, d
     else:
         checks.append(("yellow", f"DPI: {dpi} (etwas niedrig)."))
 
+    if bw_mode:
+        checks.append(("green", "S/W-Modus: AN (margen-optimiert)."))
+    else:
+        checks.append(("yellow", "S/W-Modus: AUS (Farbe/Default)."))
+
     if debug:
         checks.append(("green", "Debug-Overlay: AN."))
     else:
@@ -221,6 +313,53 @@ def _kdp_traffic_light(*, kdp_mode, bleed_in, safe_mm, pdf_mb, budget_mb, dpi, d
     return worst, checks
 
 
+# --------- Frontmatter Design (Startseite)
+def _front_header_bar(c, w, h, *, margin, kdp_mode, bw_mode, title_text):
+    bar_h = 1.05 * inch
+    if kdp_mode and bw_mode:
+        shade = 0.90
+        c.setFillColorRGB(shade, shade, shade)
+        c.rect(0, h - bar_h, w, bar_h, fill=1, stroke=0)
+        c.setFillColor(colors.black)
+    else:
+        r, g, b = get_hour_color(6)  # “Brand”-Ton
+        c.setFillColorRGB(r, g, b)
+        c.rect(0, h - bar_h, w, bar_h, fill=1, stroke=0)
+        c.setFillColor(_best_text_color((r, g, b)))
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(margin, h - 0.70 * inch, title_text)
+    c.setFont("Helvetica", 10)
+    c.drawRightString(w - margin, h - 0.70 * inch, "24 Missionen • 8 Zonen • 1 Tag")
+
+
+def _front_card(c, x, y, w, h):
+    c.setFillColor(colors.white)
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(1.5)
+    c.roundRect(x, y, w, h, 10, fill=1, stroke=1)
+
+
+def _draw_mini_sketch(c, mini_path, *, x, y, size):
+    """
+    Zeichnet ein kleines quadratisches Mini-Skizzenbild (wenn Datei existiert).
+    """
+    try:
+        if not mini_path or not os.path.exists(mini_path):
+            return False
+        c.saveState()
+        c.setFillColor(colors.white)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(1.2)
+        c.roundRect(x, y, size, size, 8, fill=1, stroke=1)
+        pad = 6
+        c.drawImage(mini_path, x + pad, y + pad, width=size - 2 * pad, height=size - 2 * pad, preserveAspectRatio=True, mask='auto')
+        c.restoreState()
+        return True
+    except Exception:
+        return False
+
+
 # =========================================================
 # 2) APP UI
 # =========================================================
@@ -228,7 +367,6 @@ def _kdp_traffic_light(*, kdp_mode, bleed_in, safe_mm, pdf_mb, budget_mb, dpi, d
 st.set_page_config(page_title="Eddie's Welt – Quest Edition", layout="centered")
 st.title("⚔️ Eddie's Welt – Quest Edition")
 
-# DB validation (zeigt sofort Probleme im Repo)
 issues = validate_quest_db()
 if issues:
     st.warning("Quest-DB hat Probleme:\n- " + "\n- ".join(issues))
@@ -237,6 +375,11 @@ with st.sidebar:
     st.header("Einstellungen")
     kdp_mode = st.toggle('📦 KDP-Druckversion (8.5"x8.5")', value=False)
     dpi = st.select_slider("🖨️ Druck-DPI", options=[180, 240, 300], value=240, disabled=not kdp_mode)
+
+    bw_mode = st.toggle("🖤 S/W-optimiert (für günstigen Druck)", value=False, disabled=not kdp_mode)
+    bw_pattern = st.toggle("🧩 S/W Muster im Header", value=True, disabled=not (kdp_mode and bw_mode))
+
+    show_mini_sketch = st.toggle("🖼️ Mini-Skizze auf Startseite", value=True)
 
     st.divider()
     size_budget_mb = st.select_slider("📦 PDF-Budget (MB)", options=[40, 60, 80, 120, 150], value=80, disabled=not kdp_mode)
@@ -274,7 +417,6 @@ if uploaded_raw:
         status.info("Verarbeitung läuft... 📖")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Uploads -> temp files + deterministic seed parts
             raw_paths, seed_parts = [], []
             for idx, up in enumerate(sorted_files):
                 safe_name = Path(up.name).name
@@ -288,6 +430,14 @@ if uploaded_raw:
             if not raw_paths:
                 st.error("Keine gültigen Bilder.")
                 st.stop()
+
+            # Mini-Skizze aus erstem Upload (optional)
+            mini_sketch_path = None
+            if show_mini_sketch:
+                mini_sketch_path = os.path.join(temp_dir, "mini_sketch.jpg")
+                ok_mini = foto_zu_skizze(raw_paths[0], mini_sketch_path)
+                if not ok_mini:
+                    mini_sketch_path = None
 
             seed_material = kind_name.strip() + "|" + "|".join(seed_parts)
             random.seed(seed_material.encode("utf-8", errors="ignore"))
@@ -307,7 +457,7 @@ if uploaded_raw:
                 TRIM = 8.5 * inch
                 BLEED = 0.125 * inch
                 w, h = TRIM + 2 * BLEED, TRIM + 2 * BLEED
-                margin = BLEED + 0.375 * inch  # SAFE from PDF edge
+                margin = BLEED + 0.375 * inch
             else:
                 w, h = A4
                 margin = 50
@@ -317,33 +467,137 @@ if uploaded_raw:
 
             jpeg_quality = 85
             estimated_total_mb, pages_done = 0.0, 0
-            target_pages = 28 if kdp_mode else 27  # intro+24 + (qr?) + cert
+
+            # Frontmatter ist jetzt 1 Seite weniger:
+            # Startseite (1) + HowTo (1) + Regeln (1) + 24 + (QR nur KDP) + Urkunde
+            target_pages = (29 if kdp_mode else 28)
 
             # -------------------
-            # Cover
-            c.setFont("Helvetica-Bold", 36)
-            c.drawCentredString(w / 2, h / 2 + 20, f"{kind_name.upper()}S QUESTBUCH")
-            c.setFont("Helvetica", 14)
-            c.drawCentredString(w / 2, h / 2 - 10, "24 Stunden • 24 Missionen")
+            # Seite 1: Startseite (Titel + Willkommen zusammengelegt)
+            if kdp_mode and bw_mode:
+                c.setFillColorRGB(0.97, 0.97, 0.97)
+                c.rect(0, 0, w, h, fill=1, stroke=0)
+
+            _front_header_bar(
+                c, w, h,
+                margin=margin,
+                kdp_mode=kdp_mode,
+                bw_mode=bw_mode,
+                title_text="EDDIES QUEST-LOGBUCH"
+            )
+
+            card_w = w - 2 * margin
+            card_h = 3.75 * inch
+            card_x = margin
+            card_y = (h / 2) - (card_h / 2) + 0.25 * inch
+            _front_card(c, card_x, card_y, card_w, card_h)
+
+            # Mini-Skizze rechts oben in der Card (optional)
+            mini_size = 1.25 * inch
+            mini_x = card_x + card_w - mini_size - 0.30 * inch
+            mini_y = card_y + card_h - mini_size - 0.35 * inch
+            drew_mini = _draw_mini_sketch(c, mini_sketch_path, x=mini_x, y=mini_y, size=mini_size)
+
+            c.setFillColor(colors.black)
+            c.setFont("Helvetica-Bold", 26)
+            c.drawString(card_x + 0.35 * inch, card_y + card_h - 1.05 * inch, f"{kind_name.upper()}S QUESTBUCH")
+
+            c.setFont("Helvetica", 12)
+            c.drawString(card_x + 0.35 * inch, card_y + card_h - 1.42 * inch, "Ein Tag. 24 Stunden. 24 Missionen.")
+
+            # Willkommen-Text (kurz & warm)
+            c.setFont("Helvetica-Bold", 16)
+            c.drawString(card_x + 0.35 * inch, card_y + card_h - 2.05 * inch, f"Hallo {kind_name}.")
+
+            c.setFont("Helvetica", 12)
+            y_txt = card_y + card_h - 2.45 * inch
+            for l in ["Das ist deine Quest-Welt.", "Hier gibt es kein Falsch.", "Du schaffst das. Schritt für Schritt."]:
+                c.drawString(card_x + 0.35 * inch, y_txt, l)
+                y_txt -= 0.28 * inch
+
+            # CTA unten
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(card_x + 0.35 * inch, card_y + 0.55 * inch, "Bereit? Auf der nächsten Seite startet deine erste Mission →")
+
+            if show_mini_sketch and not drew_mini:
+                c.setFont("Helvetica", 9)
+                c.setFillColor(colors.grey)
+                c.drawRightString(card_x + card_w - 0.30 * inch, card_y + card_h - 0.30 * inch, "Mini-Skizze nicht verfügbar")
+
+            # Seitenrahmen
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(1.2)
+            c.rect(margin, margin, w - 2 * margin, h - 2 * margin)
+
             if debug_overlay:
                 _draw_debug_overlay(c, w, h, kdp_mode, margin, BLEED)
             c.showPage()
 
             # -------------------
-            # Intro
-            c.setFont("Helvetica-Bold", 20)
-            c.drawCentredString(w / 2, h - 100, f"Hallo {kind_name}.")
-            c.setFont("Helvetica", 14)
-            y_txt = h - 160
-            for l in ["Das ist deine Quest-Welt.", "Hier gibt es kein Falsch.", "Nimm deinen Stift.", "Leg los."]:
-                c.drawCentredString(w / 2, y_txt, l)
-                y_txt -= 25
+            # How to use
+            c.setFont("Helvetica-Bold", 22)
+            c.drawCentredString(w / 2, h - 100, "So benutzt du dieses Questbuch")
+
+            c.setFont("Helvetica", 13)
+            lines = [
+                "1) Jede Seite ist eine Stunde (00–23 Uhr).",
+                "2) Male oder löse das Suchspiel im Bild.",
+                "3) Mach die Mission unten (Bewegung + Denken).",
+                "4) Setze deinen Checkpoint (Haken / Notiz / Unterschrift).",
+                "5) Am Ende bekommst du eine Urkunde.",
+                "",
+                "TIPP: Du musst nicht alles perfekt machen.",
+                "Hier gibt es kein Falsch.",
+            ]
+            y = h - 160
+            for l in lines:
+                c.drawString(margin, y, l)
+                y -= 22
+
+            c.setStrokeColor(colors.lightgrey)
+            c.setLineWidth(1)
+            c.rect(margin, margin, w - 2 * margin, h - 2 * margin)
+
             if debug_overlay:
                 _draw_debug_overlay(c, w, h, kdp_mode, margin, BLEED)
             c.showPage()
 
             # -------------------
-            # Quest pages
+            # Regeln & XP
+            c.setFont("Helvetica-Bold", 22)
+            c.drawCentredString(w / 2, h - 100, "XP & Quest-Regeln")
+
+            c.setFont("Helvetica", 13)
+            rules = [
+                "XP bedeutet: Du wirst stärker – ohne Wettbewerb.",
+                "",
+                "REGELN:",
+                "• Du darfst immer Hilfe holen (Familie/Freunde).",
+                "• Joker-Regel: Wenn etwas nicht klappt, male es einfach selbst.",
+                "• 1 Mission reicht – du darfst aber mehr machen.",
+                "• Sammle pro Seite deinen Checkpoint (Haken/Notiz).",
+                "",
+                "BONUS:",
+                "• Schreibe 1 Satz: Was war heute dein bester Moment?",
+            ]
+            y = h - 160
+            for l in rules:
+                c.drawString(margin, y, l)
+                y -= 22
+
+            c.setFont("Helvetica-Bold", 12)
+            c.drawRightString(w - margin, h - 170, "XP-Legende:")
+            c.setFont("Helvetica", 11)
+            c.drawRightString(w - margin, h - 190, "+15 leicht")
+            c.drawRightString(w - margin, h - 208, "+25 normal")
+            c.drawRightString(w - margin, h - 226, "+40 schwer")
+
+            if debug_overlay:
+                _draw_debug_overlay(c, w, h, kdp_mode, margin, BLEED)
+            c.showPage()
+
+            # -------------------
+            # Quest pages (00:00 startet jetzt direkt nach den Front-Seiten)
             unique_seed = random.randint(0, 999999)
             prog = st.progress(0)
 
@@ -355,13 +609,28 @@ if uploaded_raw:
 
                 # Header
                 header_h = 1.0 * inch
-                bg_rgb = get_hour_color(i)
-                txt_col = _best_text_color(bg_rgb)
+
+                if kdp_mode and bw_mode:
+                    shade = _bw_header_shade_from_hour(i)
+                    txt_col = _bw_text_color_for_shade(shade)
+
+                    c.saveState()
+                    c.setFillColorRGB(shade, shade, shade)
+                    c.rect(0, h - header_h, w, header_h, fill=1, stroke=0)
+                    if bw_pattern:
+                        style = _header_style_index_for_zone(zone.id)
+                        _draw_header_pattern(c, 0, h - header_h, w, header_h, style)
+                    c.restoreState()
+                else:
+                    bg_rgb = get_hour_color(i)
+                    txt_col = _best_text_color(bg_rgb)
+
+                    c.saveState()
+                    c.setFillColorRGB(*bg_rgb)
+                    c.rect(0, h - header_h, w, header_h, fill=1, stroke=0)
+                    c.restoreState()
 
                 c.saveState()
-                c.setFillColorRGB(*bg_rgb)
-                c.rect(0, h - header_h, w, header_h, fill=1, stroke=0)
-
                 c.setFillColor(txt_col)
                 c.setFont("Helvetica-Bold", 18)
                 c.drawString(margin, h - 0.62 * inch, f"{fmt_hour(i)}  {zone.icon}  {zone.name.upper()}")
@@ -429,7 +698,6 @@ if uploaded_raw:
                             jpeg_quality = max(60, jpeg_quality - 5)
                             st.info(f"🧯 Auto-Kompression: {jpeg_quality}%")
 
-                        # Suchspiel (auf Bildfläche)
                         zeichne_suchspiel(c, w, img_y, img_h, random.randint(3, 6))
                     else:
                         c.drawImage(out_sk, margin, img_y, width=img_w, height=img_h, preserveAspectRatio=True)
@@ -497,7 +765,7 @@ if uploaded_raw:
 
             if kdp_mode:
                 st.subheader("🚦 KDP-Preflight")
-                safe_mm = _in_to_mm(float(margin / inch))  # (bleed+safe) in mm
+                safe_mm = _in_to_mm(float(margin / inch))
                 level, checks = _kdp_traffic_light(
                     kdp_mode=True,
                     bleed_in=0.125,
@@ -506,6 +774,7 @@ if uploaded_raw:
                     budget_mb=float(size_budget_mb),
                     dpi=int(dpi),
                     debug=bool(debug_overlay),
+                    bw_mode=bool(bw_mode),
                 )
 
                 if level == "green":
@@ -517,13 +786,6 @@ if uploaded_raw:
 
                 for lvl, msg in checks:
                     st.write(f"{'✅' if lvl=='green' else '⚠️' if lvl=='yellow' else '❌'} {msg}")
-
-                if level != "green":
-                    with st.expander("🛠️ Strategie"):
-                        if size_mb > float(size_budget_mb):
-                            st.write("- **Größe:** DPI auf 240 / Budget hoch / Auto-Kompression an.")
-                        if not debug_overlay:
-                            st.write("- **Check:** Debug-Overlay an, um Safe/Bleed zu sehen.")
 
             suffix = "_KDP" if kdp_mode else "_A4"
             st.download_button(
