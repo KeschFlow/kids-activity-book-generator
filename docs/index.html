@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Eddies Questbuch – Start</title>
+  <meta name="description" content="Fotos hochladen, PDF erstellen, zuhause ausdrucken: Eddies Questbuch." />
+  <style>
+    :root { --bg:#0b0f17; --card:#121a27; --text:#eef2ff; --muted:#b8c0d9; --accent:#7dd3fc; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background: radial-gradient(1200px 700px at 20% 0%, #152040, var(--bg)); color:var(--text); }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 28px 18px 60px; }
+    .card { background: rgba(18,26,39,.9); border:1px solid rgba(255,255,255,.08); border-radius: 22px; padding: 22px; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+    h1 { font-size: 30px; margin: 0 0 6px; }
+    .sub { color: var(--muted); margin: 0 0 18px; }
+    .grid { display:grid; gap: 14px; grid-template-columns: 1fr; margin-top: 14px; }
+    @media (min-width: 760px){ .grid{ grid-template-columns: 1.2fr .8fr; } }
+    .step { background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 14px; }
+    .step b { color: var(--accent); }
+    .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 14px; }
+    a.btn { display:inline-block; padding: 12px 14px; border-radius: 14px; text-decoration:none; font-weight:700; }
+    a.primary { background: var(--accent); color:#001018; }
+    a.ghost { border:1px solid rgba(255,255,255,.18); color: var(--text); }
+    .small { font-size: 13px; color: var(--muted); margin-top: 14px; line-height: 1.4; }
+    code { background: rgba(0,0,0,.25); padding: 2px 6px; border-radius: 8px; }
+    .badge { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.25); color: var(--accent); font-weight:700; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="badge">Eddies Welt • Zuhause-Druck</div>
+    <h1>Eddies Questbuch – so funktioniert’s</h1>
+    <p class="sub">Fotos rein → PDF raus → zuhause ausdrucken. Ohne Stress. Ohne “richtig/falsch”.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2 style="margin:0 0 10px;">In 3 Schritten</h2>
+
+        <div class="step"><b>1) Fotos auswählen</b><br/>Am besten 10–24 Fotos (Alltag, Familie, Spielsachen, Haustier…).</div>
+        <div class="step"><b>2) Buch erstellen</b><br/>Die App macht aus den Fotos Skizzen + Missionen (Bewegung & Denken).</div>
+        <div class="step"><b>3) Zuhause drucken</b><br/>PDF öffnen → Drucker → ggf. “An Seite anpassen” aktivieren → lochen/abheften.</div>
+
+        <div class="btns">
+          <a class="btn primary" href="https://eddie-welt.streamlit.app" target="_blank" rel="noopener">Zur App (PDF erstellen)</a>
+          <a class="btn ghost" href="#drucktipps">Druck-Tipps</a>
+        </div>
+
+        <p class="small">
+          Tipp: Wenn die App mal langsam ist, einfach später nochmal öffnen – dieser Link bleibt gleich.
+        </p>
+      </div>
+
+      <div class="card" id="drucktipps">
+        <h2 style="margin:0 0 10px;">Druck-Tipps</h2>
+        <div class="step"><b>Format</b><br/>Am einfachsten: <code>A4</code> im Druckdialog.</div>
+        <div class="step"><b>Skalierung</b><br/><code>An Seite anpassen</code> oder <code>100%</code> (je nach Drucker).</div>
+        <div class="step"><b>Papier</b><br/>Normales Papier geht. Für “Premium”: 120–160g.</div>
+        <div class="step"><b>Heften</b><br/>Lochen + Ordner / Heftklammer / Klemmschiene.</div>
+        <p class="small">
+          Hinweis: Das Buch ist für Kinder gemacht – Kritzel, Male, mach’s zu deinem.
+        </p>
+      </div>
+    </div>
+
+    <p class="small" style="margin-top:16px;">
+      Wenn du den QR-Code scannst, landest du immer zuerst hier – damit klar ist, was als Nächstes zu tun ist.
+    </p>
+  </div>
+</body>
+</html>
