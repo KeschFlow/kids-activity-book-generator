@@ -386,10 +386,12 @@ with st.sidebar:
     auto_compress = st.toggle("🧯 Auto-Kompression", value=True, disabled=not kdp_mode)
     debug_overlay = st.toggle("🩻 Debug-Overlay", value=False)
     difficulty = st.slider("Schwierigkeitsgrad", 1, 5, 3)
-   app_url = st.text_input(
-    "QR-Link",
-    "https://keschflow.github.io/kids-activity-book-generator/"
-)
+
+    app_url = st.text_input(
+        "QR-Link",
+        "https://keschflow.github.io/kids-activity-book-generator/"
+    )
+
 
 
 kind_name = st.text_input("Name des Kindes", "Eddie").strip()
