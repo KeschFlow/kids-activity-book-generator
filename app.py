@@ -698,7 +698,10 @@ if st.session_state.assets:
             st.write(f"Ziel-Auflösung (kürzere Seite): **≥ {a['target_px']}px** (@ {DPI} DPI)")
             st.success(f"✅ {a['ok']} Foto(s) erfüllen das Ziel")
             if a["warn"] > 0:
-                st.warning("⚠️ Einige Fotos sind wahrscheinlich zu klein – im Preview wird eine QA-Seite eingefügt.")
+    if a.get("kdp_mode", False):
+        st.warning("⚠️ Einige Fotos sind wahrscheinlich zu klein – KDP-Export wird trotzdem erzeugt, kann aber weicher wirken.")
+    else:
+        st.warning("⚠️ Einige Fotos sind wahrscheinlich zu klein – im Preview wird eine QA-Seite eingefügt (nur Preview).")
 
         st.divider()
         st.markdown("### 📥 Downloads")
