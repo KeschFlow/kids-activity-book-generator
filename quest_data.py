@@ -2,17 +2,21 @@
 # quest_data.py
 # =========================
 # ==========================================================
-# QUEST DATABASE (Single Source of Quest Truth) — v2.3
+# QUEST DATABASE (Single Source of Quest Truth) — v3.0
 # - Zones: 8 thematische Lernwelten (00-24h)
-# - Missions: Sportliche Aktivierung + Denkauftrag
-# - XP: Gamification ohne Wettbewerb
-# - Cloud-safe API: compat (alte/neue app.py)
+# - Missions: Bewegung + Denken + Proof + XP
+# - Difficulty: 1..5
+# - NEW: Audience Modes (kid/adult/senior) via text-adapter
+# - Cloud-safe API: compat mit app.py (get_zone_for_hour, get_hour_color, pick_mission_for_time)
 # ==========================================================
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Literal
 import random
+import re
+
+Audience = Literal["kid", "adult", "senior"]
 
 
 @dataclass(frozen=True)
@@ -38,6 +42,9 @@ class Zone:
     missions: List[Mission]
 
 
+# ----------------------------------------------------------
+# Base Missions (kid baseline) – your original v2.3 content
+# ----------------------------------------------------------
 ZONES: List[Zone] = [
     Zone(
         id="wachturm",
@@ -147,6 +154,76 @@ ZONES: List[Zone] = [
 ]
 
 
+# ----------------------------------------------------------
+# Audience text adapters
+# Goal: keep DB lightweight, but make it useful 3..99+
+# ----------------------------------------------------------
+def _clean(s: str) -> str:
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _adultize(m: Mission) -> Mission:
+    # Adult: same structure, slightly more reflective wording
+    movement = _clean(
+        m.movement
+        .replace("Hampelmänner", "lockere Sprünge (oder zügig gehen)")
+        .replace("Kniebeugen", "Kniebeugen (oder 1 Minute zügig gehen)")
+        .replace("Liegestütze an der Wand", "Wandstütz-Übung (sanft)")
+        .replace("flüsternd", "leise und freundlich")
+    )
+    thinking = _clean(
+        m.thinking
+        .replace("ZIEL:", "REFLEXION:")
+        .replace("Besiege", "Reduziere")
+        .replace("Finde", "Notiere")
+        .replace("Errate", "Identifiziere")
+    )
+    proof = _clean(m.proof.replace("✅", "☑️"))
+    title = _clean(m.title)
+    return Mission(m.id, title, movement, thinking, proof, m.xp, m.difficulty)
+
+
+def _seniorize(m: Mission) -> Mission:
+    # Senior: gentle movement + memory prompts + low cognitive load
+    movement = _clean(
+        m.movement
+        .replace("10 Kniebeugen.", "5 langsame Kniebeugen ODER 1 Minute im Raum gehen.")
+        .replace("20 Armkreise.", "10 sanfte Armkreise (oder Schultern locker kreisen).")
+        .replace("30s auf einem Bein stehen.", "10 Sekunden stabil stehen (am Tisch festhalten erlaubt).")
+        .replace("30s Boxen in die Luft.", "30 Sekunden Arme sanft vor/zurück bewegen.")
+        .replace("Berühre 1 Min nicht den Boden.", "1 Minute Sitz- oder Steh-Parcours (sicher!).")
+        .replace("10x Kauen pro Bissen.", "Langsam kauen und bewusst schmecken.")
+        .replace("Gehe 20 Schritte rückwärts.", "5 Schritte rückwärts (nur wenn sicher) ODER seitwärts gehen.")
+    )
+    thinking = _clean(
+        m.thinking
+        .replace("ZIEL:", "ERINNERUNG:")
+        .replace("Plane", "Erinnere dich an")
+        .replace("Finde", "Denke an")
+        .replace("Zeichne", "Beschreibe")
+        .replace("Errate", "Nenne")
+    )
+    # Add a memory anchor if not present
+    if "ERINNERUNG:" not in thinking:
+        thinking = _clean("ERINNERUNG: " + thinking)
+
+    proof = _clean(m.proof.replace("✅", "☑️").replace("Foto/Skizze", "Notiz").replace("Skizze", "Notiz"))
+    title = _clean(m.title)
+    # Keep XP, difficulty identical
+    return Mission(m.id, title, movement, thinking, proof, m.xp, m.difficulty)
+
+
+def adapt_mission(m: Mission, audience: Audience) -> Mission:
+    if audience == "kid":
+        return m
+    if audience == "adult":
+        return _adultize(m)
+    return _seniorize(m)
+
+
+# ----------------------------------------------------------
+# API (compat)
+# ----------------------------------------------------------
 def get_zone_for_hour(hour: int) -> Zone:
     h = hour % 24
     for z in ZONES:
@@ -154,20 +231,6 @@ def get_zone_for_hour(hour: int) -> Zone:
             if start <= h < end:
                 return z
     return ZONES[0]
-
-
-def pick_mission_for_time(hour: int, difficulty: int, seed: int) -> Mission:
-    # Clamp difficulty for safety (1..5)
-    difficulty = max(1, min(5, int(difficulty)))
-
-    z = get_zone_for_hour(hour)
-    rng = random.Random(seed)
-
-    pool = [m for m in z.missions if m.difficulty <= difficulty]
-    if not pool:
-        pool = z.missions
-
-    return rng.choice(pool)
 
 
 def fmt_hour(hour: int) -> str:
@@ -178,7 +241,7 @@ def get_hour_color(hour: int) -> Tuple[float, float, float]:
     h = hour % 24
     r, g, b = get_zone_for_hour(h).color
 
-    # Night mood (21–5): darker for atmosphere + readability
+    # darker at night
     if h >= 21 or h < 6:
         factor = 0.55
         r, g, b = r * factor, g * factor, b * factor
@@ -187,6 +250,27 @@ def get_hour_color(hour: int) -> Tuple[float, float, float]:
     g = max(0.0, min(1.0, g))
     b = max(0.0, min(1.0, b))
     return (r, g, b)
+
+
+def pick_mission_for_time(hour: int, difficulty: int, seed: int, audience: Audience = "kid") -> Mission:
+    """
+    Deterministic pick:
+    - chooses zone by time
+    - filters missions by difficulty <= target
+    - then adapts text for audience (kid/adult/senior)
+    """
+    z = get_zone_for_hour(hour)
+    rng = random.Random(seed)
+
+    d = int(difficulty)
+    d = max(1, min(5, d))
+
+    pool = [m for m in z.missions if m.difficulty <= d]
+    if not pool:
+        pool = z.missions
+
+    chosen = rng.choice(pool)
+    return adapt_mission(chosen, audience)
 
 
 def validate_quest_db():
@@ -204,12 +288,6 @@ def validate_quest_db():
     return issues
 
 
-# ---------------------------
-# COMPAT LAYER (alte/neue app.py)
-# ---------------------------
+# Backwards-compatible aliases
 zone_for_hour = get_zone_for_hour
 pick_mission = pick_mission_for_time
-
-# Optional: explicit aliases for clarity / future refactors
-get_zone_for_hour = get_zone_for_hour
-pick_mission_for_time = pick_mission_for_time
