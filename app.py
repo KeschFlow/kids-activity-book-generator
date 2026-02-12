@@ -16,7 +16,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 
-import quest_data as qd  # <-- QUEST SYSTEM (NamedTuple version compatible)
+import quest_data as qd  # <-- QUEST SYSTEM
 
 # =========================================================
 # 1) BUSINESS & KDP CONFIG
@@ -102,7 +102,7 @@ def _page_geometry(kdp_print_mode: bool):
     return float(page_w), float(page_h), float(bleed), float(safe)
 
 
-def _normalize_page_count(user_pages: int, include_intro: bool, include_outro: bool, include_logbook: bool) -> int:
+def _normalize_page_count(user_pages: int, include_intro: bool, include_outro: bool) -> int:
     """
     Forced KDP compliance:
       - min 24
@@ -110,7 +110,7 @@ def _normalize_page_count(user_pages: int, include_intro: bool, include_outro: b
       - must have room for fixed pages + at least 1 photo page
     """
     pages = int(user_pages)
-    fixed = int(include_intro) + int(include_outro) + int(include_logbook)
+    fixed = int(include_intro) + int(include_outro)
 
     pages = max(KDP_MIN_PAGES, fixed + 1, pages)
     if pages % 2 != 0:
@@ -147,27 +147,82 @@ def _difficulty_from_age(age: int) -> int:
         return 5
 
 
+# =========================================================
+# 3b) EDDIE ICON (ULTRA SIMPLE PAW) - PDF + PIL
+# =========================================================
 def _draw_eddie_brand_pdf(c: canvas.Canvas, cx: float, cy: float, r: float):
-    """Minimal Eddie: B/W + purple tongue."""
+    """
+    Ultra-simple, druckstabiles Icon: Pfote
+    - 4 Zehen (kleine Kreise)
+    - Ballen (großer Kreis/oval)
+    - kleiner purpur Akzent im Ballen als "Eddies Marker"
+    """
     c.saveState()
-    c.setLineWidth(max(2, r * 0.06))
+
+    lw = max(2, r * 0.06)
+    c.setLineWidth(lw)
     c.setStrokeColor(colors.black)
+
+    # Sizing
+    toe_r = r * 0.22
+    pad_r = r * 0.45
+
+    # Toe positions (slight arc)
+    toe_y = cy + r * 0.35
+    toe_dx = r * 0.35
+    toe_dx2 = r * 0.12
+
+    toe_centers = [
+        (cx - toe_dx, toe_y),
+        (cx - toe_dx2, toe_y + r * 0.10),
+        (cx + toe_dx2, toe_y + r * 0.10),
+        (cx + toe_dx, toe_y),
+    ]
+
+    # Draw toes (white fill, black outline)
     c.setFillColor(colors.white)
-    c.circle(cx, cy, r, stroke=1, fill=1)
+    for tx, ty in toe_centers:
+        c.circle(tx, ty, toe_r, stroke=1, fill=1)
 
-    # Eyes
-    c.setFillColor(colors.black)
-    c.circle(cx - r * 0.28, cy + r * 0.15, r * 0.10, stroke=0, fill=1)
-    c.circle(cx + r * 0.28, cy + r * 0.15, r * 0.10, stroke=0, fill=1)
+    # Draw pad (white fill, black outline) as a rounded shape (circle works well)
+    pad_cy = cy - r * 0.10
+    c.circle(cx, pad_cy, pad_r, stroke=1, fill=1)
 
-    # Smile arc
-    c.setLineWidth(max(2, r * 0.05))
-    c.arc(cx - r * 0.35, cy - r * 0.10, cx + r * 0.35, cy + r * 0.20, 200, 140)
-
-    # Tongue (purple)
+    # Purple accent dot
     c.setFillColor(colors.HexColor(EDDIE_PURPLE))
-    c.roundRect(cx - r * 0.10, cy - r * 0.35, r * 0.20, r * 0.22, r * 0.08, stroke=0, fill=1)
+    c.setStrokeColor(colors.HexColor(EDDIE_PURPLE))
+    c.circle(cx, pad_cy, pad_r * 0.18, stroke=0, fill=1)
+
     c.restoreState()
+
+
+def _draw_eddie_brand_pil(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int):
+    """PIL-Variante der Pfote (für Preview-PNG)."""
+    lw = max(4, r // 10)
+
+    toe_r = int(r * 0.22)
+    pad_r = int(r * 0.45)
+
+    toe_y = cy + int(r * 0.35)
+    toe_dx = int(r * 0.35)
+    toe_dx2 = int(r * 0.12)
+
+    toe_centers = [
+        (cx - toe_dx, toe_y),
+        (cx - toe_dx2, toe_y + int(r * 0.10)),
+        (cx + toe_dx2, toe_y + int(r * 0.10)),
+        (cx + toe_dx, toe_y),
+    ]
+
+    for tx, ty in toe_centers:
+        draw.ellipse((tx - toe_r, ty - toe_r, tx + toe_r, ty + toe_r), outline="black", width=lw, fill="white")
+
+    pad_cy = cy - int(r * 0.10)
+    draw.ellipse((cx - pad_r, pad_cy - pad_r, cx + pad_r, pad_cy + pad_r), outline="black", width=lw, fill="white")
+
+    # Purple accent dot
+    dot_r = max(2, int(pad_r * 0.18))
+    draw.ellipse((cx - dot_r, pad_cy - dot_r, cx + dot_r, pad_cy + dot_r), fill=EDDIE_PURPLE, outline=None)
 
 
 def build_front_cover_preview_png(child_name: str, size_px: int = 900) -> bytes:
@@ -175,18 +230,14 @@ def build_front_cover_preview_png(child_name: str, size_px: int = 900) -> bytes:
     img = Image.new("RGB", (size_px, size_px), "white")
     d = ImageDraw.Draw(img)
 
-    cx, cy = size_px // 2, int(size_px * 0.47)
-    r = int(size_px * 0.20)
+    cx, cy = size_px // 2, int(size_px * 0.52)
+    r = int(size_px * 0.18)
 
-    d.ellipse((cx - r, cy - r, cx + r, cy + r), outline="black", width=max(4, r // 12), fill="white")
-    d.rounded_rectangle(
-        (cx - int(r * 0.12), cy + int(r * 0.30), cx + int(r * 0.12), cy + int(r * 0.55)),
-        radius=10,
-        fill=EDDIE_PURPLE,
-    )
+    _draw_eddie_brand_pil(d, cx, cy, r)
 
-    d.text((size_px * 0.5, size_px * 0.84), "EDDIES", fill="black", anchor="mm")
-    d.text((size_px * 0.5, size_px * 0.90), f"& {child_name}", fill=(90, 90, 90), anchor="mm")
+    d.text((size_px * 0.5, size_px * 0.16), "EDDIES", fill="black", anchor="mm")
+    d.text((size_px * 0.5, size_px * 0.21), f"& {child_name}", fill=(90, 90, 90), anchor="mm")
+    d.text((size_px * 0.5, size_px * 0.88), "24h Quest-Malbuch", fill=(120, 120, 120), anchor="mm")
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
@@ -268,7 +319,7 @@ def build_listing_text(child_name: str) -> str:
   <li><b>Quest-System:</b> Zeit → Zone → Mission (Gamification ohne Wettbewerb).</li>
   <li><b>Profi-Druck:</b> Optimiert für 300 DPI, KDP-kompatibel.</li>
 </ul>
-<p><i>Eddies bleibt als schwarz-weißer Referenzpunkt mit purpurfarbener Zunge – dein Kind macht die Welt bunt.</i></p>
+<p><i>Eddies bleibt als schwarz-weißer Referenzpunkt mit purpurfarbenem Marker – dein Kind macht die Welt bunt.</i></p>
 """
     return "\n".join(
         [
@@ -321,11 +372,7 @@ def _draw_quest_overlay(
 
     c.setFillColor(tc)
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(
-        x0 + 0.18 * inch,
-        y0 + header_h - 0.50 * inch,
-        f"{qd.fmt_hour(hour)}  {zone.icon}  {zone.name}",
-    )
+    c.drawString(x0 + 0.18 * inch, y0 + header_h - 0.50 * inch, f"{qd.fmt_hour(hour)}  {zone.icon}  {zone.name}")
 
     c.setFont("Helvetica", 10)
     c.drawString(x0 + 0.18 * inch, y0 + 0.18 * inch, f"{zone.quest_type} • {zone.atmosphere}")
@@ -368,7 +415,7 @@ def _draw_quest_overlay(
 
 
 # =========================================================
-# 5) INTERIOR PAGES (INTRO/OUTRO + DPI GUARD + QUEST + LOGBOOK)
+# 5) INTERIOR PAGES (INTRO/OUTRO + DPI GUARD + QUEST)
 # =========================================================
 def _draw_intro_page(c: canvas.Canvas, child_name: str, page_w: float, page_h: float, safe: float):
     c.setFillColor(colors.white)
@@ -453,70 +500,6 @@ def _draw_dpi_guard_page(
         c.drawString(left, bottom + 1.35 * inch, "OK: Fotos erfüllen voraussichtlich die 300-DPI-Anforderung.")
 
 
-def _draw_logbook_page(
-    c: canvas.Canvas,
-    page_w: float,
-    page_h: float,
-    safe: float,
-    missions: list,
-):
-    """
-    1 Logbook-Seite (immer 24 Einträge max, passend zum 24h-Konzept).
-    Wenn das Buch mehr als 24 Quest-Fotoseiten hat, wird unten ein Hinweis angezeigt.
-    """
-    c.setFillColor(colors.white)
-    c.rect(0, 0, page_w, page_h, fill=1, stroke=0)
-
-    # Title
-    c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 24)
-    c.drawCentredString(page_w / 2, page_h - safe - 0.5 * inch, "Quest Logbook")
-
-    # Table headers
-    header_y = page_h - safe - 1.2 * inch
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(safe, header_y, "Stunde")
-    c.drawString(safe + 1.5 * inch, header_y, "Mission")
-    c.drawString(safe + 5.5 * inch, header_y, "XP")
-    c.drawString(safe + 6.5 * inch, header_y, "Erledigt")
-
-    # Header line
-    c.setLineWidth(1)
-    c.line(safe, header_y - 0.1 * inch, page_w - safe, header_y - 0.1 * inch)
-
-    # Rows (max 24)
-    row_h = 0.30 * inch
-    max_rows = 24
-    shown = missions[:max_rows]
-    total_xp = 0
-
-    for i, (hour, mission) in enumerate(shown):
-        y = header_y - (i + 1) * row_h
-        c.setFont("Helvetica", 9)
-        c.drawString(safe, y, qd.fmt_hour(hour))
-        c.drawString(safe + 1.5 * inch, y, mission.title[:40])
-        c.drawString(safe + 5.5 * inch, y, f"+{mission.xp}")
-
-        # Checkbox
-        box = 0.15 * inch
-        c.rect(safe + 6.5 * inch, y + (row_h - box) / 2, box, box, fill=0, stroke=1)
-
-        total_xp += int(mission.xp)
-
-    # Total XP
-    total_y = header_y - (len(shown) + 1) * row_h
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(safe, total_y, "Gesamt XP:")
-    c.drawString(safe + 1.5 * inch, total_y, f"______ / {total_xp}")
-
-    # Overflow hint (if book has more than 24 photo-quests)
-    remaining = max(0, len(missions) - len(shown))
-    if remaining > 0:
-        c.setFont("Helvetica-Oblique", 10)
-        c.setFillColor(colors.grey)
-        c.drawString(safe, total_y - 0.35 * inch, f"Hinweis: +{remaining} weitere Mission(en) im Buch (Logbook zeigt 24h-Übersicht).")
-
-
 def build_interior_pdf(
     child_name: str,
     uploads,
@@ -525,7 +508,6 @@ def build_interior_pdf(
     kdp_print_mode: bool,
     include_intro: bool,
     include_outro: bool,
-    include_logbook: bool,
     preflight_ok: int,
     preflight_warn: int,
     preflight_target_px: int,
@@ -539,10 +521,10 @@ def build_interior_pdf(
     if not files:
         raise RuntimeError("Bitte mindestens 1 Foto hochladen.")
 
-    fixed = int(include_intro) + int(include_outro) + int(include_logbook)
+    fixed = int(include_intro) + int(include_outro)
     photo_pages_count = max(1, page_count_kdp - fixed)
 
-    # Deterministic base seed (depends on name + file signatures)
+    # Deterministic base seed
     signature = [f"{_sanitize_filename(getattr(u, 'name', 'img'))}:{getattr(u, 'size', 0)}" for u in files]
     base_seed_bytes = (child_name.strip() + "|" + "|".join(signature)).encode("utf-8", errors="ignore")
     random.seed(base_seed_bytes)
@@ -557,7 +539,6 @@ def build_interior_pdf(
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(page_w, page_h))
-    c.setPageCompression(1)  # smaller PDFs
 
     # Preview-only QA page
     if (not kdp_print_mode) and (preflight_warn > 0):
@@ -569,7 +550,6 @@ def build_interior_pdf(
         c.showPage()
 
     # Photo pages + Quest overlay
-    missions = []
     for i, up in enumerate(final):
         try:
             up.seek(0)
@@ -577,10 +557,6 @@ def build_interior_pdf(
             sketch_arr = _cv_sketch_from_bytes(img_bytes)
             pil = Image.fromarray(sketch_arr).convert("L")
             pil = _center_crop_resize_square(pil, side_px)
-
-            # crisp lineart (smaller file + nicer coloring)
-            pil = pil.point(lambda p: 255 if p > 200 else 0).convert("1")
-
             c.drawImage(ImageReader(pil), 0, 0, width=page_w, height=page_h)
         except Exception:
             c.setFillColor(colors.white)
@@ -588,6 +564,7 @@ def build_interior_pdf(
 
         hour = (int(quest_start_hour) + i) % 24
 
+        # Deterministic mission selection per page
         seed_int = (
             int.from_bytes(base_seed_bytes[:8].ljust(8, b"\0"), "big", signed=False)
             ^ (hour * 1_000_003)
@@ -595,7 +572,6 @@ def build_interior_pdf(
             ^ (int(quest_difficulty) * 10_000_019)
         )
         mission = qd.pick_mission_for_time(hour=hour, difficulty=int(quest_difficulty), seed=int(seed_int))
-        missions.append((hour, mission))
 
         _draw_quest_overlay(c, page_w, page_h, safe, hour, mission)
 
@@ -606,10 +582,6 @@ def build_interior_pdf(
 
     if include_outro:
         _draw_outro_page(c, child_name, page_w, page_h, safe)
-        c.showPage()
-
-    if include_logbook:
-        _draw_logbook_page(c, page_w, page_h, safe, missions)
         c.showPage()
 
     c.save()
@@ -631,7 +603,6 @@ def build_cover_wrap_pdf(child_name: str, page_count: int, paper_type: str) -> b
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(cov_w, cov_h))
-    c.setPageCompression(1)
 
     c.setFillColor(colors.white)
     c.rect(0, 0, cov_w, cov_h, fill=1, stroke=0)
@@ -681,12 +652,12 @@ def build_cover_wrap_pdf(child_name: str, page_count: int, paper_type: str) -> b
         )
 
     # FRONT
-    _draw_eddie_brand_pdf(c, front_x0 + TRIM / 2, BLEED + TRIM * 0.58, r=TRIM * 0.18)
+    _draw_eddie_brand_pdf(c, front_x0 + TRIM / 2, BLEED + TRIM * 0.56, r=TRIM * 0.18)
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 44)
-    c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.80, "EDDIES")
+    c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.82, "EDDIES")
     c.setFont("Helvetica", 18)
-    c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.73, f"& {child_name}")
+    c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.75, f"& {child_name}")
 
     c.setFont("Helvetica", 12)
     c.setFillColor(colors.grey)
@@ -723,10 +694,23 @@ with st.container(border=True):
 
     with col1:
         child_name = st.text_input("Vorname des Kindes", value="Eddie", placeholder="z.B. Lukas")
-        child_age = st.number_input("Alter des Kindes", min_value=3, max_value=99, value=4, step=1)
+
+        child_age = st.number_input(
+            "Alter des Kindes",
+            min_value=3,
+            max_value=99,
+            value=4,
+            step=1,
+        )
 
     with col2:
-        user_page_count = st.number_input("Seitenanzahl (Innen)", min_value=1, max_value=300, value=DEFAULT_PAGES, step=1)
+        user_page_count = st.number_input(
+            "Seitenanzahl (Innen)",
+            min_value=1,
+            max_value=300,
+            value=DEFAULT_PAGES,
+            step=1,
+        )
 
     paper_type = st.selectbox("Papier-Typ (Spine)", options=list(PAPER_FACTORS.keys()), index=0)
     kdp_print_mode = st.toggle("KDP-Druckmodus (Trim + Bleed)", value=True)
@@ -742,16 +726,15 @@ with st.container(border=True):
 
     include_intro = st.toggle("Intro-Seite", value=True)
     include_outro = st.toggle("Outro-Seite", value=True)
-    include_logbook = st.toggle("Logbook-Seite", value=False)
     eddie_inside = st.toggle("Eddies-Marke extra einblenden", value=False)
 
     uploads = st.file_uploader("Fotos hochladen (min. 1)", accept_multiple_files=True, type=["jpg", "png"])
 
-    normalized_pages = _normalize_page_count(int(user_page_count), include_intro, include_outro, include_logbook)
-    fixed = int(include_intro) + int(include_outro) + int(include_logbook)
+    normalized_pages = _normalize_page_count(int(user_page_count), include_intro, include_outro)
+    fixed = int(include_intro) + int(include_outro)
     photo_pages_hint = max(1, normalized_pages - fixed)
 
-    page_w, page_h, _, _ = _page_geometry(bool(kdp_print_mode))
+    page_w, page_h, _, _ = _page_geometry(kdp_print_mode)
     target_px_hint = int(round((min(page_w, page_h) / inch) * DPI))
 
     st.caption(
@@ -765,6 +748,7 @@ with st.container(border=True):
 
 can_build = bool(child_name.strip()) and bool(uploads)
 
+
 # =========================================================
 # 9) BUILD
 # =========================================================
@@ -774,21 +758,20 @@ if st.button("🚀 Questbuch generieren", disabled=not can_build):
     else:
         progress = st.progress(0, text="Starte Build…")
         with st.spinner("Preflight, Interior, Cover, Listing, ZIP…"):
-            page_count_kdp = _normalize_page_count(int(user_page_count), include_intro, include_outro, include_logbook)
+            page_count_kdp = _normalize_page_count(int(user_page_count), include_intro, include_outro)
 
             progress.progress(15, text="Preflight…")
-            ok_ct, warn_ct, target_px = preflight_uploads_for_300dpi(uploads, bool(kdp_print_mode))
+            ok_ct, warn_ct, target_px = preflight_uploads_for_300dpi(uploads, kdp_print_mode)
 
             progress.progress(45, text="Interior (Quest)…")
             interior_pdf = build_interior_pdf(
                 child_name.strip(),
                 uploads,
                 page_count_kdp,
-                bool(eddie_inside),
-                bool(kdp_print_mode),
-                bool(include_intro),
-                bool(include_outro),
-                bool(include_logbook),
+                eddie_inside,
+                kdp_print_mode,
+                include_intro,
+                include_outro,
                 preflight_ok=ok_ct,
                 preflight_warn=warn_ct,
                 preflight_target_px=target_px,
@@ -797,7 +780,7 @@ if st.button("🚀 Questbuch generieren", disabled=not can_build):
             )
 
             progress.progress(70, text="CoverWrap…")
-            cover_pdf = build_cover_wrap_pdf(child_name.strip(), int(page_count_kdp), paper_type)
+            cover_pdf = build_cover_wrap_pdf(child_name.strip(), page_count_kdp, paper_type)
 
             progress.progress(82, text="Cover Preview…")
             preview_png = build_front_cover_preview_png(child_name.strip(), size_px=900)
@@ -836,6 +819,7 @@ if st.button("🚀 Questbuch generieren", disabled=not can_build):
             progress.progress(100, text="Fertig ✅")
 
         st.success("Questbuch-Assets erfolgreich generiert!")
+
 
 # =========================================================
 # 10) OUTPUT
