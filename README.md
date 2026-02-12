@@ -1,70 +1,184 @@
-# 🐶 Eddies
+# 🐶 Eddies – Quest & Activity Print Engine
 
-**Eddies** ist eine Streamlit-App, die aus Fotos ein personalisiertes **Kids Activity / Malbuch** als PDF erzeugt.  
-Optional erzeugt sie außerdem ein **KDP-kompatibles** Interior (8.5" × 8.5" mit Bleed/Anschnitt) inkl. **Preflight** und **QA-Warnseite** (nur Preview).
+**Eddies** ist eine modulare Streamlit-Anwendung zur Generierung von  
+druckfertigen **Quest-, Activity- und Workbook-Büchern** als PDF.
 
-> Fokus: **druckfertige Outputs** + **RAM-only Verarbeitung** + **wiederholbare Ergebnisse**.
+Sie kombiniert:
 
----
+- 📸 Foto → Sketch-Transformation  
+- 🧭 24h-Quest-System (Gamification ohne Wettbewerb)  
+- 🧠 Bewegung + Denken + XP  
+- 🖨️ KDP-kompatible Print-Pipeline  
+- 🔒 RAM-only Privacy-Verarbeitung  
 
-## ✅ Features
-
-### 📸 Foto → Ausmalbild
-- **Sketch-Engine:** Foto → kontrastreiche Schwarz-Weiß-Skizze zum Ausmalen (OpenCV)
-- **Center-Crop + Resize:** konsistentes Seitenformat (Quadrat), ideal für Malbuchseiten
-
-### 🧭 Quest-System (24h)
-- **24h-Zyklus:** Jede Seite entspricht einer Stunde (Startzeit wählbar)
-- **Zonen/Atmosphäre:** Stunden werden thematischen Zonen zugeordnet (z. B. Morgenstart, Vormittag, Abendwind)
-- **Mission Overlay:** Jede Seite enthält:
-  - **Bewegung**
-  - **Denken**
-  - **Proof-Checkbox**
-  - **XP**
-- **Schwierigkeitsgrad (Auto):** wird aus Alter/Profil abgeleitet (1–5)
-
-### 🖨️ KDP / Print Pipeline
-- **KDP-Printmode Toggle:**
-  - **Preview Mode:** 8.5" × 8.5" (wie später sichtbar)
-  - **KDP Print Mode:** 8.75" × 8.75" (8.5" Trim + 0.125" Bleed je Seite)
-- **Safe-Zone korrekt:** Safe Zone wird im Print-Mode um den Bleed verschoben
-- **Forced KDP Compliance:** Erzwingt **min. 24 Seiten** + **gerade Seitenzahl**
-- **Preflight (300 DPI Ziel):** Prüft Upload-Auflösung und warnt bei zu kleinen Bildern
-- **DPI-Guard QA-Seite:** Wenn Bilder zu klein sind, wird im **Preview Mode** automatisch eine **Warnseite** vorn eingefügt (nicht für KDP-Upload gedacht)
-
-### 🎨 Cover + Listing
-- **CoverWrap PDF:** Back + Spine + Front in einer Datei
-  - Spine-Breite wird berechnet (abhängig von Papier)
-  - Barcode-Keepout
-  - Spine-Text erst ab **79 Seiten**
-- **Listing.txt:** Ready-to-publish KDP Listing-Textbundle
-
-### 🔒 Privacy-First
-- **Keine Speicherung:** Verarbeitung nur im RAM (keine dauerhafte Speicherung von Fotos)
-- Output wird als PDF/ZIP direkt zum Download bereitgestellt
+> Fokus: deterministische Outputs, drucktechnische Korrektheit, Zero-Daten-Speicherung.
 
 ---
 
-## 🧰 Tech Stack
+# 🧠 System-Architektur
 
-- **Streamlit**
-- **OpenCV (headless)**
-- **Pillow**
-- **ReportLab**
+Eddies ist modular aufgebaut:
+
+| Modul | Aufgabe |
+|--------|---------|
+| `app.py` | Questbook Edition (Foto → 24h Missionsbuch) |
+| `engine_sketch.py` | Aktivitätsgrafiken (Maze + Suchauftrag, deterministic) |
+| `quest_data.py` | Zentrale Quest-Datenbank (Zones + Missions + Audience-Adapter) |
+| `kern/pdf_engine.py` | Print-Geometrie + Bleed + Safe + Icon Registry |
+| `app_trainer.py` | Fachsprach-Workbook (Vokabel + Bild + Notizen) |
+
+Alle Editionen nutzen dieselbe Print-Engine.
 
 ---
 
-## 🚀 Schnellstart (Lokal)
+# 🚀 Core Features
+
+## 📸 Foto → Ausmalbild
+
+- OpenCV Sketch-Engine (druckfreundliche Linien)
+- Center-Crop + Resize (Quadrat, 300 DPI)
+- Deterministische Verarbeitung (Seed-basiert)
+- RAM-only Bildverarbeitung
+
+---
+
+## 🧭 24h Quest-System
+
+- Jede Seite = 1 Stunde (Startzeit wählbar)
+- 8 thematische Zonen (00–24h)
+- Mission Overlay mit:
+  - Bewegung
+  - Denkaufgabe
+  - Proof-Check
+  - XP
+- Automatische Schwierigkeitsanpassung (Alter → Stufe 1–5)
+- Audience-Modi:
+  - Kid
+  - Adult
+  - Senior
+
+Gamification ohne Wettbewerb – Fokus auf Selbstwirksamkeit.
+
+---
+
+## 🧩 Aktivitäts-Engine (engine_sketch)
+
+Optional generierbare Activity-Seiten:
+
+- Labyrinth (seed-basiert)
+- Suchaufträge
+- Druckoptimierte Liniengrafik
+- Kein Bildmaterial notwendig
+
+---
+
+## 🖨️ KDP Print Pipeline (Production-Ready)
+
+### Formate
+- Preview Mode: 8.5" × 8.5"
+- KDP Print Mode: 8.75" × 8.75" (8.5" + 0.125" Bleed)
+
+### Print-Sicherheit
+- Safe-Zone korrekt berechnet
+- Forced Compliance:
+  - min. 24 Seiten
+  - gerade Seitenzahl
+- Preflight Check (300 DPI Ziel)
+- QA-Warnseite im Preview-Modus
+- Spine-Berechnung abhängig vom Papier
+- Barcode-Keepout
+- Spine-Text erst ab 79 Seiten
+
+---
+
+## 🎨 Cover + Publishing Assets
+
+- CoverWrap PDF (Back + Spine + Front)
+- Automatische Spine-Breite
+- Listing.txt (KDP-Ready Textbundle)
+- ZIP Export (Interior + Cover + Listing)
+
+---
+
+## 🧠 Eddie Trainer (Fachsprach Edition)
+
+- Vokabel-Input (deutsch;übersetzung)
+- Bild-Zyklus oder Icon-Fallback
+- Notizbereich
+- KDP-kompatibel
+- Nutzt dieselbe Print-Engine
+
+---
+
+## 🎨 Icon System (Registry)
+
+- Skalierbare Vektor-Piktogramme
+- Drucksicher (kein Raster nötig)
+- Erweiterbar über `ICON_DRAWERS`
+- Einheitlicher Brand-Akzent (EDDIE_PURPLE)
+
+---
+
+## 🔒 Privacy-First
+
+- Keine Speicherung von Uploads
+- Verarbeitung ausschließlich im RAM
+- Download als PDF/ZIP
+- Keine Cloud-Datenbank
+
+---
+
+# 🧰 Tech Stack
+
+- Streamlit
+- OpenCV (headless)
+- Pillow
+- ReportLab
+- Deterministic Random Engine
+
+---
+
+# 🎯 Design-Prinzipien
+
+- Druck vor Design  
+- Struktur vor Spielerei  
+- Modularität vor Chaos  
+- Wiederholbarkeit vor Zufall  
+
+Eddies ist kein „Malbuch-Generator“.  
+Es ist eine deterministische Print-Engine mit Gamification-Overlay.
+
+---
+
+# 🚀 Schnellstart (Lokal)
 
 ```bash
 git clone https://github.com/KeschFlow/kids-activity-book-generator.git
 cd kids-activity-book-generator
 
 python -m venv .venv
-# macOS / Linux:
+
+# macOS / Linux
 source .venv/bin/activate
-# Windows PowerShell:
+
+# Windows
 # .venv\Scripts\Activate.ps1
 
 pip install -r requirements.txt
+
+# Quest Edition
 streamlit run app.py
+
+# Trainer Edition
+streamlit run app_trainer.py
+```
+
+---
+
+# 🔮 Roadmap
+
+- KI-Image-Fallback für Trainer
+- Mehrsprachige Quest-Datenbank
+- Weitere Print-Formate (A4, 6x9, Workbook)
+- Hub-App zur Modul-Auswahl
+- SaaS-Version
