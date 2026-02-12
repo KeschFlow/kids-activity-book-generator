@@ -16,7 +16,7 @@ from reportlab.lib.utils import ImageReader
 # =========================================================
 # 1) BUSINESS & KDP CONFIG (NO APIs REQUIRED)
 # =========================================================
-APP_TITLE = "Eddie Publishing System"
+APP_TITLE = "Eddies"
 APP_ICON = "🐶"
 
 EDDIE_PURPLE = "#7c3aed"  # Markenfarbe (Zunge)
