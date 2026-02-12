@@ -2,18 +2,22 @@
 from __future__ import annotations
 
 import io
+import math
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Dict, Optional
 
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 
-# Branding-Farbe (zentral definiert)
+# Branding-Farbe (zentral)
 EDDIE_PURPLE = colors.HexColor("#7c3aed")
 
 
+# =========================================================
+# PAGE SPEC
+# =========================================================
 @dataclass(frozen=True)
 class PageSpec:
     page_w: float
@@ -34,24 +38,30 @@ def get_page_spec(*, kdp_mode: bool, square: bool = True) -> PageSpec:
     if kdp_mode:
         bleed = 0.125 * inch
         if square:
-            trim_size = 8.5 * inch
-            page_w = page_h = trim_size + 2 * bleed
+            trim_w = 8.5 * inch
+            trim_h = 8.5 * inch
         else:
-            page_w = 8.27 * inch + 2 * bleed
-            page_h = 11.69 * inch + 2 * bleed
+            trim_w = 8.27 * inch   # A4
+            trim_h = 11.69 * inch  # A4
+        page_w = trim_w + 2 * bleed
+        page_h = trim_h + 2 * bleed
         safe = bleed + 0.375 * inch
     else:
         bleed = 0.0
         if square:
-            page_w = page_h = 8.5 * inch
+            page_w = 8.5 * inch
+            page_h = 8.5 * inch
         else:
             page_w = 8.27 * inch
             page_h = 11.69 * inch
         safe = 0.5 * inch
 
-    return PageSpec(page_w=float(page_w), page_h=float(page_h), bleed=bleed, safe=safe)
+    return PageSpec(page_w=float(page_w), page_h=float(page_h), bleed=float(bleed), safe=float(safe))
 
 
+# =========================================================
+# BASIC DRAW HELPERS
+# =========================================================
 def draw_box(
     c: canvas.Canvas,
     x: float,
@@ -125,8 +135,8 @@ def embed_image(
         else:
             draw_w, draw_h = target_w, target_h
 
-        dx = (max_w - draw_w) / 2
-        dy = (max_h - draw_h) / 2
+        dx = (max_w - draw_w) / 2.0
+        dy = (max_h - draw_h) / 2.0
 
         c.drawImage(ImageReader(im), x + dx, y + dy, width=draw_w, height=draw_h, mask="auto")
 
@@ -140,171 +150,253 @@ def embed_image(
 
 
 # =========================================================
-# Hilfsfunktionen für Icons
+# ICONS – STYLE HELPERS
+# Konvention: x,y = links-unten der Icon-Box; size = Kantenlänge
 # =========================================================
-
 def _icon_style(c: canvas.Canvas, size: float):
-    """Einheitlicher Stil für alle Icons: schwarze Linien, variable Stärke"""
+    """Grundstil: schwarze Linien, rund, skalierbar."""
     c.setStrokeColor(colors.black)
-    c.setLineWidth(max(1, size * 0.04))
-    c.setFillColor(colors.black)
+    c.setFillColor(colors.white)
+    c.setLineWidth(max(1.0, float(size) * 0.06))
+    try:
+        c.setLineCap(1)   # round
+        c.setLineJoin(1)  # round
+    except Exception:
+        pass
 
 
-def _draw_purple_dot(c: canvas.Canvas, x: float, y: float, r: float):
-    """Kleiner lila Akzent-Punkt (wird oft als Highlight verwendet)"""
+def _purple_dot(c: canvas.Canvas, x: float, y: float, r: float):
     c.setFillColor(EDDIE_PURPLE)
     c.circle(x, y, r, fill=1, stroke=0)
 
 
 # =========================================================
-# Bestehende Icon-Funktionen (bereits vorhanden)
+# PRO-ICONS (Job-Set) – Piktogramme (druck-sicher)
 # =========================================================
-
-def draw_icon_hammer(c: canvas.Canvas, cx: float, cy: float, size: float):
+def draw_icon_hammer(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
-    c.line(cx - size*0.4, cy - size*0.4, cx + size*0.4, cy + size*0.4)
-    c.rect(cx + size*0.25, cy + size*0.25, size*0.5, size*0.15, fill=1, stroke=1)
-    _draw_purple_dot(c, cx + size*0.5, cy + size*0.5, size*0.08)
+    c.line(x + size * 0.20, y + size * 0.80, x + size * 0.80, y + size * 0.20)
+    c.rect(x + size * 0.55, y + size * 0.60, size * 0.35, size * 0.15, stroke=1, fill=0)
+    _purple_dot(c, x + size * 0.22, y + size * 0.78, size * 0.06)
     c.restoreState()
 
 
-def draw_icon_wrench(c: canvas.Canvas, cx: float, cy: float, size: float):
+def draw_icon_wrench(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
-    c.line(cx - size*0.45, cy - size*0.45, cx + size*0.45, cy + size*0.45)
-    c.arc(cx + size*0.3, cy + size*0.3, size*0.5, 30, 330)
-    _draw_purple_dot(c, cx + size*0.6, cy + size*0.6, size*0.07)
+    c.line(x + size * 0.25, y + size * 0.25, x + size * 0.75, y + size * 0.75)
+    x1, y1 = x + size * 0.62, y + size * 0.62
+    x2, y2 = x + size * 0.92, y + size * 0.92
+    c.arc(x1, y1, x2, y2, 30, 300)
+    _purple_dot(c, x + size * 0.74, y + size * 0.76, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_gear(c: canvas.Canvas, cx: float, cy: float, size: float):
+def draw_icon_gear(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
-    c.circle(cx, cy, size*0.4, fill=0, stroke=1)
-    for angle in range(0, 360, 45):
-        from math import cos, sin, radians
-        x1 = cx + size*0.4 * cos(radians(angle))
-        y1 = cy + size*0.4 * sin(radians(angle))
-        x2 = cx + size*0.55 * cos(radians(angle))
-        y2 = cy + size*0.55 * sin(radians(angle))
+    cx, cy = x + size * 0.50, y + size * 0.50
+    c.circle(cx, cy, size * 0.30, stroke=1, fill=0)
+    c.circle(cx, cy, size * 0.10, stroke=1, fill=0)
+
+    for deg in range(0, 360, 45):
+        a = math.radians(deg)
+        x1 = cx + (size * 0.30) * math.cos(a)
+        y1 = cy + (size * 0.30) * math.sin(a)
+        x2 = cx + (size * 0.44) * math.cos(a)
+        y2 = cy + (size * 0.44) * math.sin(a)
         c.line(x1, y1, x2, y2)
-    _draw_purple_dot(c, cx, cy, size*0.08)
+
+    _purple_dot(c, cx, y + size * 0.82, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_medical_cross(c: canvas.Canvas, cx: float, cy: float, size: float):
+def draw_icon_medical_cross(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
-    c.rect(cx - size*0.15, cy - size*0.4, size*0.3, size*0.8, fill=1, stroke=0)
-    c.rect(cx - size*0.4, cy - size*0.15, size*0.8, size*0.3, fill=1, stroke=0)
+    c.rect(x + size * 0.40, y + size * 0.20, size * 0.20, size * 0.60, stroke=1, fill=0)
+    c.rect(x + size * 0.20, y + size * 0.40, size * 0.60, size * 0.20, stroke=1, fill=0)
+    _purple_dot(c, x + size * 0.50, y + size * 0.86, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_briefcase(c: canvas.Canvas, cx: float, cy: float, size: float):
+def draw_icon_briefcase(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
-    c.rect(cx - size*0.45, cy - size*0.3, size*0.9, size*0.6, fill=0, stroke=1)
-    c.rect(cx - size*0.15, cy + size*0.2, size*0.3, size*0.15, fill=0, stroke=1)
-    _draw_purple_dot(c, cx + size*0.4, cy, size*0.06)
+    c.rect(x + size * 0.20, y + size * 0.30, size * 0.60, size * 0.45, stroke=1, fill=0)
+    c.rect(x + size * 0.40, y + size * 0.75, size * 0.20, size * 0.10, stroke=1, fill=0)
+    _purple_dot(c, x + size * 0.78, y + size * 0.52, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_book_open(c: canvas.Canvas, cx: float, cy: float, size: float):
+def draw_icon_book_open(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
-    c.rect(cx - size*0.45, cy - size*0.35, size*0.4, size*0.7, fill=0, stroke=1)
-    c.rect(cx + size*0.05, cy - size*0.35, size*0.4, size*0.7, fill=0, stroke=1)
-    c.line(cx, cy - size*0.35, cx, cy + size*0.35)
-    _draw_purple_dot(c, cx, cy + size*0.45, size*0.06)
+    c.rect(x + size * 0.20, y + size * 0.30, size * 0.30, size * 0.50, stroke=1, fill=0)
+    c.rect(x + size * 0.50, y + size * 0.30, size * 0.30, size * 0.50, stroke=1, fill=0)
+    c.line(x + size * 0.50, y + size * 0.30, x + size * 0.50, y + size * 0.80)
+    _purple_dot(c, x + size * 0.50, y + size * 0.86, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_fork_knife(c: canvas.Canvas, cx: float, cy: float, size: float):
+def draw_icon_fork_knife(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
-    c.line(cx - size*0.3, cy - size*0.5, cx - size*0.3, cy + size*0.5)
-    c.line(cx - size*0.4, cy + size*0.4, cx - size*0.2, cy + size*0.4)
-    c.setFillColor(EDDIE_PURPLE)
-    c.circle(cx + size*0.3, cy + size*0.5, size*0.06, fill=1, stroke=0)
+    c.line(x + size * 0.32, y + size * 0.20, x + size * 0.32, y + size * 0.85)
+    c.line(x + size * 0.60, y + size * 0.20, x + size * 0.60, y + size * 0.85)
+    _purple_dot(c, x + size * 0.60, y + size * 0.86, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_computer(c: canvas.Canvas, cx: float, cy: float, size: float):
+def draw_icon_computer(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
-    c.rect(cx - size*0.45, cy - size*0.35, size*0.9, size*0.7, fill=0, stroke=1)
-    c.rect(cx - size*0.35, cy - size*0.45, size*0.7, size*0.1, fill=0, stroke=1)
-    _draw_purple_dot(c, cx + size*0.4, cy + size*0.1, size*0.06)
+    c.rect(x + size * 0.20, y + size * 0.40, size * 0.60, size * 0.40, stroke=1, fill=0)
+    c.line(x + size * 0.40, y + size * 0.30, x + size * 0.60, y + size * 0.30)
+    _purple_dot(c, x + size * 0.78, y + size * 0.60, size * 0.05)
     c.restoreState()
 
 
 # =========================================================
-# NEUE Icon-Funktionen (für fehlende Slugs)
+# NEUE ICONS (zusätzliche Slugs)
 # =========================================================
-
-def draw_icon_scissors(c: canvas.Canvas, cx: float, cy: float, size: float):
-    """Schere (für Schneidern)"""
+def draw_icon_scissors(c: canvas.Canvas, x: float, y: float, size: float):
+    """Schere (Schneidern)"""
     c.saveState()
     _icon_style(c, size)
-    c.line(cx - size*0.5, cy - size*0.4, cx + size*0.5, cy + size*0.4)
-    c.line(cx - size*0.5, cy + size*0.4, cx + size*0.5, cy - size*0.4)
-    c.line(cx, cy - size*0.4, cx, cy + size*0.4)
-    _draw_purple_dot(c, cx, cy, size*0.08)
+
+    # Klingen (X)
+    c.line(x + size * 0.20, y + size * 0.25, x + size * 0.80, y + size * 0.75)
+    c.line(x + size * 0.20, y + size * 0.75, x + size * 0.80, y + size * 0.25)
+
+    # Griff (2 Ringe unten)
+    c.circle(x + size * 0.38, y + size * 0.22, size * 0.10, stroke=1, fill=0)
+    c.circle(x + size * 0.62, y + size * 0.22, size * 0.10, stroke=1, fill=0)
+
+    _purple_dot(c, x + size * 0.50, y + size * 0.52, size * 0.06)
     c.restoreState()
 
 
-def draw_icon_syringe(c: canvas.Canvas, cx: float, cy: float, size: float):
-    """Spritze (für Pflege)"""
+def draw_icon_syringe(c: canvas.Canvas, x: float, y: float, size: float):
+    """Spritze (Pflege/Medizin)"""
     c.saveState()
     _icon_style(c, size)
-    # Kanüle
-    c.line(cx - size*0.5, cy, cx + size*0.5, cy)
+
+    # Körper
+    c.rect(x + size * 0.28, y + size * 0.38, size * 0.44, size * 0.18, stroke=1, fill=0)
     # Kolben
-    c.rect(cx - size*0.1, cy - size*0.2, size*0.2, size*0.4, fill=0, stroke=1)
-    # Griff
-    c.rect(cx + size*0.3, cy - size*0.15, size*0.2, size*0.3, fill=0, stroke=1)
-    _draw_purple_dot(c, cx + size*0.4, cy, size*0.06)
+    c.line(x + size * 0.18, y + size * 0.47, x + size * 0.28, y + size * 0.47)
+    c.line(x + size * 0.16, y + size * 0.52, x + size * 0.16, y + size * 0.42)
+    # Nadel
+    c.line(x + size * 0.72, y + size * 0.47, x + size * 0.90, y + size * 0.47)
+
+    _purple_dot(c, x + size * 0.50, y + size * 0.66, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_envelope(c: canvas.Canvas, cx: float, cy: float, size: float):
-    """Briefumschlag (für E-Mail/Kommunikation)"""
+def draw_icon_envelope(c: canvas.Canvas, x: float, y: float, size: float):
+    """Briefumschlag (Kommunikation)"""
     c.saveState()
     _icon_style(c, size)
-    c.line(cx - size*0.5, cy + size*0.3, cx + size*0.5, cy + size*0.3)
-    c.line(cx - size*0.5, cy + size*0.3, cx, cy - size*0.3)
-    c.line(cx + size*0.5, cy + size*0.3, cx, cy - size*0.3)
-    _draw_purple_dot(c, cx, cy, size*0.07)
+
+    # Umschlag-Rechteck
+    c.rect(x + size * 0.18, y + size * 0.30, size * 0.64, size * 0.44, stroke=1, fill=0)
+    # Klappe
+    c.line(x + size * 0.18, y + size * 0.74, x + size * 0.50, y + size * 0.52)
+    c.line(x + size * 0.82, y + size * 0.74, x + size * 0.50, y + size * 0.52)
+    c.line(x + size * 0.18, y + size * 0.30, x + size * 0.50, y + size * 0.52)
+    c.line(x + size * 0.82, y + size * 0.30, x + size * 0.50, y + size * 0.52)
+
+    _purple_dot(c, x + size * 0.80, y + size * 0.32, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_calendar(c: canvas.Canvas, cx: float, cy: float, size: float):
-    """Kalender (für Termine)"""
+def draw_icon_calendar(c: canvas.Canvas, x: float, y: float, size: float):
+    """Kalender (Termine)"""
     c.saveState()
     _icon_style(c, size)
-    c.rect(cx - size*0.45, cy - size*0.45, size*0.9, size*0.9, fill=0, stroke=1)
-    c.rect(cx - size*0.45, cy + size*0.15, size*0.9, size*0.3, fill=1, stroke=0)
-    _draw_purple_dot(c, cx, cy - size*0.1, size*0.08)
+
+    # Rahmen
+    c.rect(x + size * 0.18, y + size * 0.22, size * 0.64, size * 0.62, stroke=1, fill=0)
+    # Kopfzeile
+    c.rect(x + size * 0.18, y + size * 0.72, size * 0.64, size * 0.12, stroke=1, fill=0)
+    # Bindungspunkte
+    c.circle(x + size * 0.32, y + size * 0.86, size * 0.04, stroke=1, fill=0)
+    c.circle(x + size * 0.68, y + size * 0.86, size * 0.04, stroke=1, fill=0)
+
+    _purple_dot(c, x + size * 0.50, y + size * 0.46, size * 0.06)
     c.restoreState()
 
 
-def draw_icon_wheelchair(c: canvas.Canvas, cx: float, cy: float, size: float):
-    """Rollstuhl (für Pflege)"""
+def draw_icon_wheelchair(c: canvas.Canvas, x: float, y: float, size: float):
+    """Rollstuhl (Pflege/Barrierefreiheit)"""
     c.saveState()
     _icon_style(c, size)
-    c.circle(cx - size*0.3, cy - size*0.3, size*0.2, fill=0, stroke=1)
-    c.circle(cx + size*0.3, cy - size*0.3, size*0.2, fill=0, stroke=1)
-    c.rect(cx - size*0.4, cy - size*0.1, size*0.8, size*0.4, fill=0, stroke=1)
-    _draw_purple_dot(c, cx, cy + size*0.1, size*0.07)
+
+    # Großes Rad
+    c.circle(x + size * 0.40, y + size * 0.34, size * 0.22, stroke=1, fill=0)
+    # Kleines Rad
+    c.circle(x + size * 0.72, y + size * 0.28, size * 0.08, stroke=1, fill=0)
+    # Sitz/Lehne (vereinfacht)
+    c.line(x + size * 0.40, y + size * 0.56, x + size * 0.62, y + size * 0.56)
+    c.line(x + size * 0.62, y + size * 0.56, x + size * 0.70, y + size * 0.44)
+    c.line(x + size * 0.50, y + size * 0.56, x + size * 0.50, y + size * 0.78)
+
+    _purple_dot(c, x + size * 0.50, y + size * 0.80, size * 0.05)
     c.restoreState()
 
 
-def draw_icon_tray(c: canvas.Canvas, cx: float, cy: float, size: float):
-    """Tablett (für Kellner/Gastronomie)"""
+def draw_icon_tray(c: canvas.Canvas, x: float, y: float, size: float):
+    """Tablett (Gastro/Service)"""
     c.saveState()
     _icon_style(c, size)
-    c.rect(cx - size*0.5, cy - size*0.4, size*1.0, size*0.3, fill=0, stroke=1)
-    c.line(cx - size*0.5, cy - size*0.1, cx + size*0.5, cy - size*0.1)
-    _draw_purple_dot(c, cx, cy + size*0.1, size*0.08)
+
+    # Tablett (oval-ish: wir nehmen eine abgerundete Box über circle/rect)
+    c.roundRect(x + size * 0.18, y + size * 0.42, size * 0.64, size * 0.20, radius=size * 0.08, stroke=1, fill=0)
+    # Hand/Griff
+    c.line(x + size * 0.50, y + size * 0.42, x + size * 0.50, y + size * 0.28)
+    c.circle(x + size * 0.50, y + size * 0.26, size * 0.05, stroke=1, fill=0)
+
+    _purple_dot(c, x + size * 0.78, y + size * 0.54, size * 0.05)
     c.restoreState()
+
+
+# =========================================================
+# ICON REGISTRY (HIER kommt dein ICON_DRAWERS.update(...) hin)
+# =========================================================
+IconDrawer = Callable[[canvas.Canvas, float, float, float], None]
+
+ICON_DRAWERS: Dict[str, IconDrawer] = {}
+ICON_DRAWERS.update(
+    {
+        # existing
+        "hammer": draw_icon_hammer,
+        "wrench": draw_icon_wrench,
+        "gear": draw_icon_gear,
+        "medical": draw_icon_medical_cross,
+        "briefcase": draw_icon_briefcase,
+        "teacher": draw_icon_book_open,
+        "gastro": draw_icon_fork_knife,
+        "computer": draw_icon_computer,
+        # new slugs
+        "scissors": draw_icon_scissors,
+        "syringe": draw_icon_syringe,
+        "envelope": draw_icon_envelope,
+        "calendar": draw_icon_calendar,
+        "wheelchair": draw_icon_wheelchair,
+        "tray": draw_icon_tray,
+    }
+)
+
+
+def draw_icon(c: canvas.Canvas, *, key: str, x: float, y: float, size: float) -> bool:
+    """
+    Zeichnet ein Icon aus dem Registry.
+    Returns True wenn gezeichnet, sonst False.
+    """
+    fn = ICON_DRAWERS.get(str(key).strip().lower())
+    if not fn:
+        return False
+    fn(c, x, y, size)
+    return True
