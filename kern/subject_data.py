@@ -13,3 +13,14 @@ SUBJECTS = {
         {"wort": "der Kellner", "satz": "Der Kellner bringt das Essen."},
     ],
 }
+AUTO_ICON.update({
+    "metall": "hammer",
+    "werkstatt": "gear",
+    "pflege": "medical",
+    "arzt": "medical",
+    "büro": "briefcase",
+    "lehrer": "teacher",
+    "koch": "gastro",
+    "küche": "gastro",
+    "it": "computer",
+})
