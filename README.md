@@ -1,6 +1,6 @@
-# ✏️ Eddie’s Welt – Kids Activity Book Generator
+# 🐶 Eddies
 
-**Eddie’s Welt** ist eine Streamlit-App, die aus Fotos ein personalisiertes **Kids Activity / Malbuch** als PDF erzeugt.  
+**Eddies** ist eine Streamlit-App, die aus Fotos ein personalisiertes **Kids Activity / Malbuch** als PDF erzeugt.  
 Optional erzeugt sie außerdem ein **KDP-kompatibles** Interior (8.5" × 8.5" mit Bleed/Anschnitt) inkl. **Preflight** und **QA-Warnseite** (nur Preview).
 
 ---
@@ -8,8 +8,8 @@ Optional erzeugt sie außerdem ein **KDP-kompatibles** Interior (8.5" × 8.5" mi
 ## ✅ Features
 
 - **Sketch-Engine:** Foto → kontrastreiche Schwarz-Weiß-Skizze zum Ausmalen
-- **KDP-Printmode Toggle:**  
-  - **Preview Mode:** 8.5" × 8.5" (wie später sichtbar)  
+- **KDP-Printmode Toggle:**
+  - **Preview Mode:** 8.5" × 8.5" (wie später sichtbar)
   - **KDP Print Mode:** 8.75" × 8.75" (8.5" Trim + 0.125" Bleed je Seite)
 - **Safe-Zone korrekt:** Safe Zone wird im Print-Mode um den Bleed verschoben
 - **Forced KDP Compliance:** Erzwingt **min. 24 Seiten** + **gerade Seitenzahl**
@@ -27,8 +27,6 @@ Optional erzeugt sie außerdem ein **KDP-kompatibles** Interior (8.5" × 8.5" mi
 - OpenCV (headless)
 - Pillow
 - ReportLab
-
-> Hinweis: `qrcode` nur aufführen, wenn du es wirklich im Code nutzt. Sonst weglassen.
 
 ---
 
