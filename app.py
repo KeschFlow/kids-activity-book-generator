@@ -1,3 +1,6 @@
+# =========================
+# app.py  (Questbook Edition)
+# =========================
 import streamlit as st
 import cv2
 import io
@@ -13,13 +16,15 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 
+import quest_data as qd  # <-- QUEST SYSTEM
+
 # =========================================================
-# 1) BUSINESS & KDP CONFIG (NO APIs REQUIRED)
+# 1) BUSINESS & KDP CONFIG
 # =========================================================
 APP_TITLE = "Eddies"
 APP_ICON = "🐶"
 
-EDDIE_PURPLE = "#7c3aed"  # Markenfarbe (Zunge)
+EDDIE_PURPLE = "#7c3aed"
 
 DPI = 300
 TRIM_IN = 8.5
@@ -30,7 +35,6 @@ SAFE_INTERIOR = 0.375 * inch
 DEFAULT_PAGES = 24
 KDP_MIN_PAGES = 24
 
-# Cover / Spine
 PAPER_FACTORS = {
     "Schwarzweiß – Weiß": 0.002252,
     "Schwarzweiß – Creme": 0.0025,
@@ -42,7 +46,7 @@ COVER_SAFE = 0.25 * inch
 HUB_URL = "https://eddieswelt.de"
 
 # =========================================================
-# 2) STREAMLIT CONFIG + STYLING (SAFE)
+# 2) STREAMLIT CONFIG + STYLING
 # =========================================================
 st.set_page_config(page_title=APP_TITLE, layout="centered", page_icon=APP_ICON)
 
@@ -61,10 +65,12 @@ small { color: #6b7280; }
 )
 
 st.markdown(f"<div class='main-title'>{APP_TITLE}</div>", unsafe_allow_html=True)
-st.markdown(
-    "<div class='subtitle'>Dein 1-Klick KDP-Publishing-Set: Interior + CoverWrap + Listing-Texte</div>",
-    unsafe_allow_html=True,
-)
+st.markdown("<div class='subtitle'>24h Quest-Malbuch: Foto-Skizzen + Missionen + XP</div>", unsafe_allow_html=True)
+
+# Quest DB sanity
+issues = qd.validate_quest_db()
+if issues:
+    st.error("Quest-Datenbank hat Probleme:\n- " + "\n- ".join(issues))
 
 # =========================================================
 # 3) HELPERS
@@ -74,15 +80,6 @@ def _sanitize_filename(name: str) -> str:
 
 
 def _page_geometry(kdp_print_mode: bool):
-    """
-    KDP Printmode:
-      - Page = TRIM + 2*BLEED (8.75")
-      - Safe = BLEED + SAFE_INTERIOR
-    Preview mode:
-      - Page = TRIM only (8.5")
-      - Safe = SAFE_INTERIOR
-    Returns (page_w, page_h, bleed, safe)
-    """
     if kdp_print_mode:
         page_w = TRIM + 2 * BLEED
         page_h = TRIM + 2 * BLEED
@@ -97,30 +94,21 @@ def _page_geometry(kdp_print_mode: bool):
 
 
 def _normalize_page_count(user_pages: int, include_intro: bool, include_outro: bool) -> int:
-    """
-    Forced KDP compliance:
-      - min 24
-      - even page count
-      - must have room for fixed pages + at least 1 photo page
-    """
     pages = int(user_pages)
     fixed = int(include_intro) + int(include_outro)
 
     pages = max(KDP_MIN_PAGES, fixed + 1, pages)
     if pages % 2 != 0:
         pages += 1
-
     if pages < fixed + 1:
         pages = fixed + 1
         if pages % 2 != 0:
             pages += 1
         pages = max(KDP_MIN_PAGES, pages)
-
     return pages
 
 
 def _draw_eddie_brand_pdf(c: canvas.Canvas, cx: float, cy: float, r: float):
-    """Minimal Eddie: B/W + purple tongue."""
     c.saveState()
     c.setLineWidth(max(2, r * 0.06))
     c.setStrokeColor(colors.black)
@@ -142,7 +130,6 @@ def _draw_eddie_brand_pdf(c: canvas.Canvas, cx: float, cy: float, r: float):
 def build_front_cover_preview_png(child_name: str, size_px: int = 900) -> bytes:
     img = Image.new("RGB", (size_px, size_px), "white")
     d = ImageDraw.Draw(img)
-
     cx, cy = size_px // 2, int(size_px * 0.47)
     r = int(size_px * 0.20)
 
@@ -152,8 +139,7 @@ def build_front_cover_preview_png(child_name: str, size_px: int = 900) -> bytes:
         radius=10,
         fill=EDDIE_PURPLE,
     )
-
-    d.text((size_px * 0.5, size_px * 0.84), "EDDIE", fill="black", anchor="mm")
+    d.text((size_px * 0.5, size_px * 0.84), "EDDIES", fill="black", anchor="mm")
     d.text((size_px * 0.5, size_px * 0.90), f"& {child_name}", fill=(90, 90, 90), anchor="mm")
 
     buf = io.BytesIO()
@@ -169,8 +155,7 @@ def _cv_sketch_from_bytes(img_bytes: bytes) -> np.ndarray:
     inverted = 255 - gray
     blurred = cv2.GaussianBlur(inverted, (21, 21), 0)
     sketch = cv2.divide(gray, 255 - blurred, scale=256.0)
-    sketch = cv2.normalize(sketch, None, 0, 255, cv2.NORM_MINMAX)
-    return sketch
+    return cv2.normalize(sketch, None, 0, 255, cv2.NORM_MINMAX)
 
 
 def _center_crop_resize_square(pil_img: Image.Image, side_px: int) -> Image.Image:
@@ -179,8 +164,7 @@ def _center_crop_resize_square(pil_img: Image.Image, side_px: int) -> Image.Imag
     left = (w - s) // 2
     top = (h - s) // 2
     pil_img = pil_img.crop((left, top, left + s, top + s))
-    pil_img = pil_img.resize((side_px, side_px), Image.LANCZOS)
-    return pil_img
+    return pil_img.resize((side_px, side_px), Image.LANCZOS)
 
 
 def preflight_uploads_for_300dpi(uploads, kdp_print_mode: bool) -> tuple[int, int, int]:
@@ -210,39 +194,30 @@ def _calc_spine_width_inch(page_count: int, paper_type: str) -> float:
 
 
 def build_listing_text(child_name: str) -> str:
-    title = f"Eddie & {child_name}"
+    title = f"Eddies & {child_name}"
     subtitle = (
-        "Mein ganz persönliches Malbuch aus echten Momenten – "
-        "Ein kreatives Abenteuer für Kinder ab 4 Jahren (Personalisiertes Geschenk)"
+        "24h Quest-Malbuch aus echten Momenten – "
+        "Bewegung + Denken + Ausmalen (Personalisiertes Geschenk)"
     )
     keywords = [
         "Personalisiertes Malbuch Kinder",
-        "Malbuch mit eigenen Fotos",
-        "Geschenk Schulanfang Junge Mädchen",
-        "Kreativbuch personalisiert",
-        "Fotogeschenk Kinder kreativ",
-        "Eddie Malbuch Terrier",
-        "Malen nach Fotos Abenteuer",
+        "Quest Buch Kinder",
+        "24 Stunden Abenteuer Buch",
+        "Bewegung und Denken Kinder",
+        "Geschenk Kinder personalisiert",
+        "Malbuch mit Fotos",
+        "Eddies Quest",
     ]
-    html = f"""<h3>Lasse deine schönsten Momente lebendig werden!</h3>
-<p>Was passiert, wenn deine eigenen Fotos zu magischen Ausmalbildern werden?
-<b>Eddie</b> begleitet dich auf einer ganz besonderen Reise – und <b>{child_name}</b> steht im Mittelpunkt dieses Abenteuers.</p>
-
-<p>In diesem Buch ist nichts gewöhnlich:</p>
+    html = f"""<h3>24 Stunden. 24 Missionen. Dein Kind als Held.</h3>
+<p>Aus deinen Fotos entstehen Ausmalbilder – und jede Seite enthält eine echte Mission:
+<b>Bewegung</b> + <b>Denkaufgabe</b> + <b>XP</b> zum Abhaken.</p>
 <ul>
-  <li><b>Vollständig personalisiert:</b> Jede Seite basiert auf deinen hochgeladenen Bildern.</li>
-  <li><b>Eddie ist immer dabei:</b> Der treue schwarz-weiße Terrier führt dich durch das Buch.</li>
-  <li><b>Viel Platz für Fantasie:</b> Große Flächen laden zum Ausmalen ein.</li>
-  <li><b>Professionell druckfertig:</b> Optimiert für 300 DPI Druckqualität.</li>
+  <li><b>Personalisiert:</b> Jede Seite basiert auf deinen hochgeladenen Bildern.</li>
+  <li><b>Quest-System:</b> Zeit → Zone → Mission (Gamification ohne Wettbewerb).</li>
+  <li><b>Profi-Druck:</b> Optimiert für 300 DPI, KDP-kompatibel.</li>
 </ul>
-<p><i>Hinweis: Eddie bleibt in seinem klassischen Look (schwarz-weiß mit purpurfarbener Zunge) – du gestaltest die Welt um ihn herum bunt!</i></p>
+<p><i>Eddies bleibt als schwarz-weißer Referenzpunkt mit purpurfarbener Zunge – dein Kind macht die Welt bunt.</i></p>
 """
-    aplus = (
-        "A+ Content Blueprint (3 Banner):\n"
-        "1) Header: Foto vs. Ausmalseite (Transformation)\n"
-        "2) Eddie Brand: Eddie Close-up (B/W + purpur Zunge)\n"
-        "3) Qualität: 300 DPI Linien-Detail (Profi-Druck)\n"
-    )
     return "\n".join(
         [
             "READY-TO-PUBLISH LISTING BUNDLE (KDP)",
@@ -254,25 +229,98 @@ def build_listing_text(child_name: str) -> str:
             "",
             "BESCHREIBUNG (HTML):",
             html,
-            "",
-            aplus,
         ]
     )
 
+# =========================================================
+# 4) QUEST RENDERING (ON EACH PHOTO PAGE)
+# =========================================================
+def _text_color_for_rgb(rgb01):
+    r, g, b = rgb01
+    lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return colors.white if lum < 0.45 else colors.black
+
+
+def _draw_quest_overlay(
+    c: canvas.Canvas,
+    page_w: float,
+    page_h: float,
+    safe: float,
+    hour: int,
+    mission: qd.Mission,
+):
+    # Header band
+    header_h = 0.75 * inch
+    x0 = safe
+    y0 = page_h - safe - header_h
+    w = page_w - 2 * safe
+
+    zone = qd.get_zone_for_hour(hour)
+    zone_rgb = qd.get_hour_color(hour)
+    fill = colors.Color(zone_rgb[0], zone_rgb[1], zone_rgb[2])
+    tc = _text_color_for_rgb(zone_rgb)
+
+    c.saveState()
+    c.setFillColor(fill)
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(1)
+    c.rect(x0, y0, w, header_h, fill=1, stroke=1)
+
+    c.setFillColor(tc)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(x0 + 0.18 * inch, y0 + header_h - 0.50 * inch, f"{qd.fmt_hour(hour)}  {zone.icon}  {zone.name}")
+
+    c.setFont("Helvetica", 10)
+    c.drawString(x0 + 0.18 * inch, y0 + 0.18 * inch, f"{zone.quest_type} • {zone.atmosphere}")
+
+    # Mission card bottom
+    card_h = 2.05 * inch
+    cy = safe
+    c.setFillColor(colors.white)
+    c.setStrokeColor(colors.black)
+    c.rect(x0, cy, w, card_h, fill=1, stroke=1)
+
+    # Mission title + XP
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(x0 + 0.18 * inch, cy + card_h - 0.45 * inch, f"MISSION: {mission.title}")
+    c.setFont("Helvetica-Bold", 11)
+    c.drawRightString(x0 + w - 0.18 * inch, cy + card_h - 0.45 * inch, f"+{mission.xp} XP")
+
+    # Movement / Thinking
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(x0 + 0.18 * inch, cy + card_h - 0.85 * inch, "BEWEGUNG:")
+    c.setFont("Helvetica", 10)
+    c.drawString(x0 + 1.05 * inch, cy + card_h - 0.85 * inch, mission.movement)
+
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(x0 + 0.18 * inch, cy + card_h - 1.20 * inch, "DENKEN:")
+    c.setFont("Helvetica", 10)
+    c.drawString(x0 + 0.90 * inch, cy + card_h - 1.20 * inch, mission.thinking)
+
+    # Proof checkbox line
+    box = 0.20 * inch
+    bx = x0 + 0.18 * inch
+    by = cy + 0.35 * inch
+    c.setStrokeColor(colors.black)
+    c.rect(bx, by, box, box, fill=0, stroke=1)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(bx + box + 0.15 * inch, by + 0.02 * inch, f"PROOF: {mission.proof}")
+
+    c.restoreState()
 
 # =========================================================
-# 4) INTERIOR PAGES (INTRO/OUTRO + DPI GUARD PAGE)
+# 5) INTERIOR PAGES (INTRO/OUTRO + DPI GUARD + QUEST)
 # =========================================================
 def _draw_intro_page(c: canvas.Canvas, child_name: str, page_w: float, page_h: float, safe: float):
     c.setFillColor(colors.white)
     c.rect(0, 0, page_w, page_h, fill=1, stroke=0)
-
     top = page_h - safe
     bottom = safe
 
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 34)
-    c.drawCentredString(page_w / 2, top - 0.65 * inch, "Willkommen bei Eddie")
+    c.drawCentredString(page_w / 2, top - 0.65 * inch, "Willkommen bei Eddies")
 
     c.setFont("Helvetica", 22)
     c.drawCentredString(page_w / 2, top - 1.25 * inch, f"& {child_name}")
@@ -282,13 +330,12 @@ def _draw_intro_page(c: canvas.Canvas, child_name: str, page_w: float, page_h: f
 
     c.setFont("Helvetica-Oblique", 14)
     c.setFillColor(colors.grey)
-    c.drawCentredString(page_w / 2, bottom + 0.55 * inch, "Male dieses Abenteuer in deinen Farben aus!")
+    c.drawCentredString(page_w / 2, bottom + 0.75 * inch, "24 Stunden • 24 Missionen • Haken setzen • XP sammeln")
 
 
 def _draw_outro_page(c: canvas.Canvas, child_name: str, page_w: float, page_h: float, safe: float):
     c.setFillColor(colors.white)
     c.rect(0, 0, page_w, page_h, fill=1, stroke=0)
-
     top = page_h - safe
     bottom = safe
 
@@ -318,7 +365,6 @@ def _draw_dpi_guard_page(
     c.rect(0, 0, page_w, page_h, fill=1, stroke=0)
 
     left = safe
-    right = page_w - safe
     top = page_h - safe
     bottom = safe
 
@@ -328,42 +374,27 @@ def _draw_dpi_guard_page(
 
     c.setFont("Helvetica", 12)
     c.setFillColor(colors.grey)
-    c.drawString(left, top - 0.70 * inch, "Diese Seite wird nur im Preview-Modus eingefügt und ist NICHT für KDP-Upload gedacht.")
-
-    box_h = 2.15 * inch
-    box_y = top - 0.95 * inch - box_h
-    c.setStrokeColor(colors.lightgrey)
-    c.setLineWidth(1)
-    c.rect(left, box_y, (right - left), box_h, fill=0, stroke=1)
+    c.drawString(left, top - 0.70 * inch, "Nur Preview. Für KDP bitte Print Mode aktivieren.")
 
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(left + 0.25 * inch, box_y + box_h - 0.45 * inch, "DPI Preflight Ergebnis")
-
     c.setFont("Helvetica", 12)
-    c.drawString(left + 0.25 * inch, box_y + box_h - 0.85 * inch, f"Uploads: {total_uploads}")
-    c.drawString(left + 0.25 * inch, box_y + box_h - 1.15 * inch, f"Ziel (kürzere Seite): ≥ {target_px}px (@ {DPI} DPI)")
-    c.drawString(left + 0.25 * inch, box_y + box_h - 1.45 * inch, f"OK: {ok_ct}  |  Warnung: {warn_ct}")
+    c.drawString(left, top - 1.15 * inch, f"Uploads: {total_uploads}")
+    c.drawString(left, top - 1.45 * inch, f"Ziel: ≥ {target_px}px (kürzere Seite) @ {DPI} DPI")
+    c.drawString(left, top - 1.75 * inch, f"OK: {ok_ct}  |  Warnung: {warn_ct}")
 
     if warn_ct > 0:
         c.setFillColor(colors.red)
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(left, bottom + 1.35 * inch, "WARNUNG: Einige Fotos sind wahrscheinlich zu klein für vollen Druck-Anschnitt.")
+        c.drawString(left, bottom + 1.35 * inch, "WARNUNG: Einige Fotos sind wahrscheinlich zu klein.")
         c.setFillColor(colors.black)
         c.setFont("Helvetica", 12)
-        c.drawString(left, bottom + 0.95 * inch, "Empfehlung: Nutze größere Fotos oder weniger Crop (Original höher auflösen).")
+        c.drawString(left, bottom + 0.95 * inch, "Empfehlung: größere Fotos nutzen oder weniger Crop.")
     else:
         c.setFillColor(colors.green)
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(left, bottom + 1.35 * inch, "OK: Deine Fotos erfüllen voraussichtlich die 300-DPI-Anforderung.")
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica", 12)
-        c.drawString(left, bottom + 0.95 * inch, "Du kannst jetzt in den KDP-Druckmodus wechseln und final exportieren.")
+        c.drawString(left, bottom + 1.35 * inch, "OK: Fotos erfüllen voraussichtlich die 300-DPI-Anforderung.")
 
 
-# =========================================================
-# 5) BUILD ENGINES
-# =========================================================
 def build_interior_pdf(
     child_name: str,
     uploads,
@@ -375,6 +406,8 @@ def build_interior_pdf(
     preflight_ok: int,
     preflight_warn: int,
     preflight_target_px: int,
+    quest_start_hour: int,
+    quest_difficulty: int,
 ) -> bytes:
     page_w, page_h, _, safe = _page_geometry(kdp_print_mode)
     side_px = int(round((min(page_w, page_h) / inch) * DPI))
@@ -386,10 +419,9 @@ def build_interior_pdf(
     fixed = int(include_intro) + int(include_outro)
     photo_pages_count = max(1, page_count_kdp - fixed)
 
-    signature = []
-    for u in files:
-        signature.append(f"{_sanitize_filename(getattr(u, 'name', 'img'))}:{getattr(u, 'size', 0)}")
-    random.seed((child_name.strip() + "|" + "|".join(signature)).encode("utf-8", errors="ignore"))
+    signature = [f"{_sanitize_filename(getattr(u, 'name', 'img'))}:{getattr(u, 'size', 0)}" for u in files]
+    base_seed_bytes = (child_name.strip() + "|" + "|".join(signature)).encode("utf-8", errors="ignore")
+    random.seed(base_seed_bytes)
 
     final = list(files)
     while len(final) < photo_pages_count:
@@ -401,24 +433,17 @@ def build_interior_pdf(
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(page_w, page_h))
 
+    # Preview-only QA page
     if (not kdp_print_mode) and (preflight_warn > 0):
-        _draw_dpi_guard_page(
-            c=c,
-            page_w=page_w,
-            page_h=page_h,
-            safe=safe,
-            ok_ct=preflight_ok,
-            warn_ct=preflight_warn,
-            target_px=preflight_target_px,
-            total_uploads=len(files),
-        )
+        _draw_dpi_guard_page(c, page_w, page_h, safe, preflight_ok, preflight_warn, preflight_target_px, len(files))
         c.showPage()
 
     if include_intro:
         _draw_intro_page(c, child_name, page_w, page_h, safe)
         c.showPage()
 
-    for up in final:
+    # Photo pages + Quest overlay
+    for i, up in enumerate(final):
         try:
             up.seek(0)
             img_bytes = up.read()
@@ -430,8 +455,18 @@ def build_interior_pdf(
             c.setFillColor(colors.white)
             c.rect(0, 0, page_w, page_h, fill=1, stroke=0)
 
+        # Hour mapping (24h loop)
+        hour = (quest_start_hour + i) % 24
+
+        # Deterministic mission selection per page
+        # seed = hash(base_seed_bytes + hour) but stable: use int from bytes
+        seed_int = int.from_bytes(base_seed_bytes[:8].ljust(8, b"\0"), "big", signed=False) ^ (hour * 1_000_003) ^ (i * 97)
+        mission = qd.pick_mission_for_time(hour=hour, difficulty=int(quest_difficulty), seed=int(seed_int))
+
+        _draw_quest_overlay(c, page_w, page_h, safe, hour, mission)
+
         if eddie_inside:
-            _draw_eddie_brand_pdf(c, page_w - safe, safe, 0.20 * inch)
+            _draw_eddie_brand_pdf(c, page_w - safe, safe + 2.25 * inch, 0.18 * inch)
 
         c.showPage()
 
@@ -443,7 +478,9 @@ def build_interior_pdf(
     buf.seek(0)
     return buf.getvalue()
 
-
+# =========================================================
+# 6) COVER
+# =========================================================
 def build_cover_wrap_pdf(child_name: str, page_count: int, paper_type: str) -> bytes:
     spine_w = _calc_spine_width_inch(page_count, paper_type) * inch
     cov_w = (2 * TRIM) + spine_w + (2 * BLEED)
@@ -465,11 +502,11 @@ def build_cover_wrap_pdf(child_name: str, page_count: int, paper_type: str) -> b
 
     c.setFillColor(colors.black)
     c.setFont("Helvetica", 12)
-    c.drawString(safe_x, safe_y + safe_h - 14, "Eddie’s Welt")
+    c.drawString(safe_x, safe_y + safe_h - 14, "Eddies")
 
     c.setFont("Helvetica", 10)
     c.setFillColor(colors.grey)
-    c.drawString(safe_x, safe_y + safe_h - 30, "Erstellt mit dem Eddie Publishing System")
+    c.drawString(safe_x, safe_y + safe_h - 30, "24h Quest-Malbuch")
 
     box_w, box_h = 2.0 * inch, 1.2 * inch
     box_x = back_x0 + TRIM - COVER_SAFE - box_w
@@ -490,7 +527,7 @@ def build_cover_wrap_pdf(child_name: str, page_count: int, paper_type: str) -> b
         c.setFont("Helvetica-Bold", 10)
         c.translate(spine_x0 + spine_w / 2, BLEED + TRIM / 2)
         c.rotate(90)
-        c.drawCentredString(0, -4, f"EDDIE & {child_name}".upper())
+        c.drawCentredString(0, -4, f"EDDIES & {child_name}".upper())
         c.restoreState()
     else:
         _draw_eddie_brand_pdf(
@@ -501,39 +538,35 @@ def build_cover_wrap_pdf(child_name: str, page_count: int, paper_type: str) -> b
         )
 
     _draw_eddie_brand_pdf(c, front_x0 + TRIM / 2, BLEED + TRIM * 0.58, r=TRIM * 0.18)
-
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 44)
-    c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.80, "EDDIE")
-
+    c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.80, "EDDIES")
     c.setFont("Helvetica", 18)
     c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.73, f"& {child_name}")
 
     c.setFont("Helvetica", 12)
     c.setFillColor(colors.grey)
-    c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.18, "Dein persönliches Malbuch aus echten Momenten")
+    c.drawCentredString(front_x0 + TRIM / 2, BLEED + TRIM * 0.18, "24h Quest-Malbuch")
 
     c.save()
     buf.seek(0)
     return buf.getvalue()
 
-
 # =========================================================
-# 6) SESSION STATE INIT
+# 7) SESSION STATE
 # =========================================================
 if "assets" not in st.session_state:
     st.session_state.assets = None
 
-
 # =========================================================
-# 7) UI INPUTS
+# 8) UI
 # =========================================================
 st.markdown(
     f"""
 <div class="kpi-container">
-  <span class="kpi">8,5″ × 8,5″</span>
+  <span class="kpi">Quest: 24h System</span>
   <span class="kpi">Anschnitt 0,125″</span>
-  <span class="kpi">{DPI} DPI druckfertig</span>
+  <span class="kpi">{DPI} DPI</span>
 </div>
 """,
     unsafe_allow_html=True,
@@ -544,21 +577,22 @@ with st.container(border=True):
     with col1:
         child_name = st.text_input("Vorname des Kindes", value="Eddie", placeholder="z.B. Lukas")
     with col2:
-        user_page_count = st.number_input(
-            "Seitenanzahl (User-Eingabe)",
-            min_value=1,
-            max_value=300,
-            value=DEFAULT_PAGES,
-            step=1,
-        )
+        user_page_count = st.number_input("Seitenanzahl (Innen)", min_value=1, max_value=300, value=DEFAULT_PAGES, step=1)
 
-    paper_type = st.selectbox("Papier-Typ (Spine-Berechnung)", options=list(PAPER_FACTORS.keys()), index=0)
-
+    paper_type = st.selectbox("Papier-Typ (Spine)", options=list(PAPER_FACTORS.keys()), index=0)
     kdp_print_mode = st.toggle("KDP-Druckmodus (Trim + Bleed)", value=True)
-    include_intro = st.toggle("Intro-Seite (Willkommen)", value=True)
-    include_outro = st.toggle("Outro-Seite (Quest abgeschlossen)", value=True)
 
-    eddie_inside = st.toggle("Eddie-Marke auf Foto-Seiten (unten rechts)", value=False)
+    # Quest Controls
+    c3, c4 = st.columns(2)
+    with c3:
+        quest_start_hour = st.number_input("Quest-Startzeit (Stunde)", min_value=0, max_value=23, value=6, step=1)
+    with c4:
+        quest_difficulty = st.slider("Quest-Schwierigkeit", min_value=1, max_value=5, value=3, step=1)
+
+    include_intro = st.toggle("Intro-Seite", value=True)
+    include_outro = st.toggle("Outro-Seite", value=True)
+    eddie_inside = st.toggle("Eddies-Marke extra einblenden", value=False)
+
     uploads = st.file_uploader("Fotos hochladen (min. 1)", accept_multiple_files=True, type=["jpg", "png"])
 
     normalized_pages = _normalize_page_count(int(user_page_count), include_intro, include_outro)
@@ -569,31 +603,28 @@ with st.container(border=True):
     target_px_hint = int(round((min(page_w, page_h) / inch) * DPI))
 
     st.caption(
-        f"Forced Compliance aktiv: **{normalized_pages} Seiten** (min. 24, gerade Zahl). "
-        f"Aktuell: **{photo_pages_hint}** Foto-Seiten + **{fixed}** Sonderseiten. "
-        f"Für volle {DPI}-DPI-Schärfe sollten Fotos mindestens **~{target_px_hint}px** an der kürzeren Seite haben."
+        f"Forced Compliance: **{normalized_pages} Seiten** (min. 24, gerade). "
+        f"Davon **{photo_pages_hint}** Quest-Foto-Seiten + **{fixed}** Sonderseiten. "
+        f"300DPI Ziel: **~{target_px_hint}px** (kürzere Seite)."
     )
-
-    if normalized_pages != int(user_page_count):
-        st.info(f"Seitenzahl wird automatisch angepasst: {int(user_page_count)} → {normalized_pages}")
 
 can_build = bool(child_name.strip()) and bool(uploads)
 
 # =========================================================
-# 8) BUILD
+# 9) BUILD
 # =========================================================
-if st.button("🚀 Publishing-Paket generieren", disabled=not can_build):
+if st.button("🚀 Questbuch generieren", disabled=not can_build):
     if not can_build:
         st.warning("Bitte Name eingeben und mindestens 1 Foto hochladen.")
     else:
         progress = st.progress(0, text="Starte Build…")
-        with st.spinner("Erstelle Preflight, Interior, CoverWrap, Listing & ZIP…"):
+        with st.spinner("Preflight, Interior, Cover, Listing, ZIP…"):
             page_count_kdp = _normalize_page_count(int(user_page_count), include_intro, include_outro)
 
-            progress.progress(15, text="Preflight-Check…")
+            progress.progress(15, text="Preflight…")
             ok_ct, warn_ct, target_px = preflight_uploads_for_300dpi(uploads, kdp_print_mode)
 
-            progress.progress(40, text="Render: Interior PDF…")
+            progress.progress(45, text="Interior (Quest)…")
             interior_pdf = build_interior_pdf(
                 child_name.strip(),
                 uploads,
@@ -605,18 +636,20 @@ if st.button("🚀 Publishing-Paket generieren", disabled=not can_build):
                 preflight_ok=ok_ct,
                 preflight_warn=warn_ct,
                 preflight_target_px=target_px,
+                quest_start_hour=int(quest_start_hour),
+                quest_difficulty=int(quest_difficulty),
             )
 
-            progress.progress(65, text="Render: CoverWrap PDF…")
+            progress.progress(70, text="CoverWrap…")
             cover_pdf = build_cover_wrap_pdf(child_name.strip(), page_count_kdp, paper_type)
 
-            progress.progress(75, text="Erzeuge Cover-Vorschau…")
+            progress.progress(82, text="Cover Preview…")
             preview_png = build_front_cover_preview_png(child_name.strip(), size_px=900)
 
-            progress.progress(85, text="Erzeuge Listing-Bundle…")
+            progress.progress(90, text="Listing…")
             listing_txt = build_listing_text(child_name.strip())
 
-            progress.progress(95, text="Packe ZIP…")
+            progress.progress(96, text="ZIP…")
             today = datetime.now().date().isoformat()
             base = _sanitize_filename(child_name.strip())
             zip_buf = io.BytesIO()
@@ -639,18 +672,15 @@ if st.button("🚀 Publishing-Paket generieren", disabled=not can_build):
                 "name": child_name.strip(),
                 "date": today,
                 "kdp_mode": kdp_print_mode,
-                "intro": include_intro,
-                "outro": include_outro,
                 "pages_kdp": page_count_kdp,
-                "pages_user": int(user_page_count),
             }
 
             progress.progress(100, text="Fertig ✅")
 
-        st.success("Assets erfolgreich generiert!")
+        st.success("Questbuch-Assets erfolgreich generiert!")
 
 # =========================================================
-# 9) OUTPUT
+# 10) OUTPUT
 # =========================================================
 if st.session_state.assets:
     a = st.session_state.assets
@@ -664,15 +694,11 @@ if st.session_state.assets:
 
         with c2:
             st.markdown("**Preflight:**")
-            st.write(f"KDP-Seiten (forced): **{a['pages_kdp']}**  |  User-Eingabe: **{a['pages_user']}**")
-            st.write(f"Ziel-Auflösung (kürzere Seite): **≥ {a['target_px']}px** (für den gewählten Modus @ {DPI} DPI)")
+            st.write(f"KDP-Seiten (forced): **{a['pages_kdp']}**")
+            st.write(f"Ziel-Auflösung (kürzere Seite): **≥ {a['target_px']}px** (@ {DPI} DPI)")
             st.success(f"✅ {a['ok']} Foto(s) erfüllen das Ziel")
             if a["warn"] > 0:
-                st.warning("⚠️ Einige Fotos sind wahrscheinlich zu klein – im Preview wird eine QA-Seite eingefügt (nur Preview).")
-            st.info(
-                f"Modus: **{'KDP-Druckmodus (mit Bleed)' if a['kdp_mode'] else 'Preview (ohne Bleed)'}** · "
-                f"Intro: **{'an' if a['intro'] else 'aus'}** · Outro: **{'an' if a['outro'] else 'aus'}**"
-            )
+                st.warning("⚠️ Einige Fotos sind wahrscheinlich zu klein – im Preview wird eine QA-Seite eingefügt.")
 
         st.divider()
         st.markdown("### 📥 Downloads")
@@ -680,7 +706,7 @@ if st.session_state.assets:
         st.download_button(
             "📦 Download: Komplettpaket (ZIP)",
             data=a["zip"],
-            file_name=f"Eddie_Publishing_Set_{_sanitize_filename(a['name'])}_{a['date']}.zip",
+            file_name=f"Eddies_Quest_Set_{_sanitize_filename(a['name'])}_{a['date']}.zip",
             mime="application/zip",
         )
 
@@ -700,13 +726,12 @@ if st.session_state.assets:
                 mime="application/pdf",
             )
 
-    with st.expander("📦 Ready-to-Publish: KDP Listing-Paket (Copy & Paste)", expanded=True):
-        st.info("Kopiere diese Texte direkt in dein Amazon KDP Listing.")
+    with st.expander("📦 Listing.txt (Copy & Paste)", expanded=True):
         st.code(a["listing"], language="text")
 
 st.markdown(
     f"<div style='text-align:center; margin-top:32px; color:#6b7280; font-size:0.85rem;'>"
-    f"Eddie’s Welt • <a href='{HUB_URL}' target='_blank' style='color:#6b7280;'>Zum Strategie-Hub</a>"
+    f"Eddies • <a href='{HUB_URL}' target='_blank' style='color:#6b7280;'>Hub</a>"
     f"</div>",
     unsafe_allow_html=True,
 )
