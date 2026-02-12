@@ -1,4 +1,4 @@
-# kern/pdf_engine.py
+# kern/pdf_engine.py  (Platinum Pro)
 from __future__ import annotations
 
 import io
@@ -147,6 +147,7 @@ def embed_image(
             c.setFillColor(colors.red)
             c.drawString(x + 12, y + 12, f"Bild-Fehler: {str(e)[:80]}")
             c.restoreState()
+        return
 
 
 # =========================================================
@@ -266,11 +267,9 @@ def draw_icon_scissors(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
 
-    # Klingen (X)
     c.line(x + size * 0.20, y + size * 0.25, x + size * 0.80, y + size * 0.75)
     c.line(x + size * 0.20, y + size * 0.75, x + size * 0.80, y + size * 0.25)
 
-    # Griff (2 Ringe unten)
     c.circle(x + size * 0.38, y + size * 0.22, size * 0.10, stroke=1, fill=0)
     c.circle(x + size * 0.62, y + size * 0.22, size * 0.10, stroke=1, fill=0)
 
@@ -283,12 +282,9 @@ def draw_icon_syringe(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
 
-    # Körper
     c.rect(x + size * 0.28, y + size * 0.38, size * 0.44, size * 0.18, stroke=1, fill=0)
-    # Kolben
     c.line(x + size * 0.18, y + size * 0.47, x + size * 0.28, y + size * 0.47)
     c.line(x + size * 0.16, y + size * 0.52, x + size * 0.16, y + size * 0.42)
-    # Nadel
     c.line(x + size * 0.72, y + size * 0.47, x + size * 0.90, y + size * 0.47)
 
     _purple_dot(c, x + size * 0.50, y + size * 0.66, size * 0.05)
@@ -300,9 +296,7 @@ def draw_icon_envelope(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
 
-    # Umschlag-Rechteck
     c.rect(x + size * 0.18, y + size * 0.30, size * 0.64, size * 0.44, stroke=1, fill=0)
-    # Klappe
     c.line(x + size * 0.18, y + size * 0.74, x + size * 0.50, y + size * 0.52)
     c.line(x + size * 0.82, y + size * 0.74, x + size * 0.50, y + size * 0.52)
     c.line(x + size * 0.18, y + size * 0.30, x + size * 0.50, y + size * 0.52)
@@ -317,11 +311,8 @@ def draw_icon_calendar(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
 
-    # Rahmen
     c.rect(x + size * 0.18, y + size * 0.22, size * 0.64, size * 0.62, stroke=1, fill=0)
-    # Kopfzeile
     c.rect(x + size * 0.18, y + size * 0.72, size * 0.64, size * 0.12, stroke=1, fill=0)
-    # Bindungspunkte
     c.circle(x + size * 0.32, y + size * 0.86, size * 0.04, stroke=1, fill=0)
     c.circle(x + size * 0.68, y + size * 0.86, size * 0.04, stroke=1, fill=0)
 
@@ -334,11 +325,8 @@ def draw_icon_wheelchair(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
 
-    # Großes Rad
     c.circle(x + size * 0.40, y + size * 0.34, size * 0.22, stroke=1, fill=0)
-    # Kleines Rad
     c.circle(x + size * 0.72, y + size * 0.28, size * 0.08, stroke=1, fill=0)
-    # Sitz/Lehne (vereinfacht)
     c.line(x + size * 0.40, y + size * 0.56, x + size * 0.62, y + size * 0.56)
     c.line(x + size * 0.62, y + size * 0.56, x + size * 0.70, y + size * 0.44)
     c.line(x + size * 0.50, y + size * 0.56, x + size * 0.50, y + size * 0.78)
@@ -352,9 +340,7 @@ def draw_icon_tray(c: canvas.Canvas, x: float, y: float, size: float):
     c.saveState()
     _icon_style(c, size)
 
-    # Tablett (oval-ish: wir nehmen eine abgerundete Box über circle/rect)
     c.roundRect(x + size * 0.18, y + size * 0.42, size * 0.64, size * 0.20, radius=size * 0.08, stroke=1, fill=0)
-    # Hand/Griff
     c.line(x + size * 0.50, y + size * 0.42, x + size * 0.50, y + size * 0.28)
     c.circle(x + size * 0.50, y + size * 0.26, size * 0.05, stroke=1, fill=0)
 
@@ -363,14 +349,14 @@ def draw_icon_tray(c: canvas.Canvas, x: float, y: float, size: float):
 
 
 # =========================================================
-# ICON REGISTRY (HIER kommt dein ICON_DRAWERS.update(...) hin)
+# ICON REGISTRY
 # =========================================================
 IconDrawer = Callable[[canvas.Canvas, float, float, float], None]
 
 ICON_DRAWERS: Dict[str, IconDrawer] = {}
 ICON_DRAWERS.update(
     {
-        # existing
+        # existing slugs
         "hammer": draw_icon_hammer,
         "wrench": draw_icon_wrench,
         "gear": draw_icon_gear,
@@ -390,13 +376,26 @@ ICON_DRAWERS.update(
 )
 
 
+# Optional: friendly aliases (wenn subject_data andere Namen nutzt)
+# Beispiel: subject_data nutzt "medical_cross" statt "medical"
+ICON_ALIASES: Dict[str, str] = {
+    "medical_cross": "medical",
+    "fork_knife": "gastro",
+    "book_open": "teacher",
+}
+
+
 def draw_icon(c: canvas.Canvas, *, key: str, x: float, y: float, size: float) -> bool:
     """
     Zeichnet ein Icon aus dem Registry.
+    - key wird normalisiert
+    - Aliases werden aufgelöst
     Returns True wenn gezeichnet, sonst False.
     """
-    fn = ICON_DRAWERS.get(str(key).strip().lower())
+    k = str(key).strip().lower()
+    k = ICON_ALIASES.get(k, k)
+    fn = ICON_DRAWERS.get(k)
     if not fn:
         return False
-    fn(c, x, y, size)
+    fn(c, x, y, float(size))
     return True
