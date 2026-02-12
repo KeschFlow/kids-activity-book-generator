@@ -16,7 +16,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 
-import quest_data as qd  # <-- QUEST SYSTEM
+import quest_data as qd  # <-- QUEST SYSTEM (NamedTuple version compatible)
 
 # =========================================================
 # 1) BUSINESS & KDP CONFIG
@@ -284,7 +284,6 @@ def build_listing_text(child_name: str) -> str:
         ]
     )
 
-
 # =========================================================
 # 4) QUEST RENDERING (ON EACH PHOTO PAGE)
 # =========================================================
@@ -321,7 +320,11 @@ def _draw_quest_overlay(
 
     c.setFillColor(tc)
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(x0 + 0.18 * inch, y0 + header_h - 0.50 * inch, f"{qd.fmt_hour(hour)}  {zone.icon}  {zone.name}")
+    c.drawString(
+        x0 + 0.18 * inch,
+        y0 + header_h - 0.50 * inch,
+        f"{qd.fmt_hour(hour)}  {zone.icon}  {zone.name}",
+    )
 
     c.setFont("Helvetica", 10)
     c.drawString(x0 + 0.18 * inch, y0 + 0.18 * inch, f"{zone.quest_type} • {zone.atmosphere}")
@@ -473,7 +476,7 @@ def build_interior_pdf(
     fixed = int(include_intro) + int(include_outro)
     photo_pages_count = max(1, page_count_kdp - fixed)
 
-    # Deterministic base seed
+    # Deterministic base seed (depends on name + file signatures)
     signature = [f"{_sanitize_filename(getattr(u, 'name', 'img'))}:{getattr(u, 'size', 0)}" for u in files]
     base_seed_bytes = (child_name.strip() + "|" + "|".join(signature)).encode("utf-8", errors="ignore")
     random.seed(base_seed_bytes)
@@ -495,6 +498,7 @@ def build_interior_pdf(
         c.showPage()
 
     if include_intro:
+        _side = _normalize_page_count(24, True, True)  # no-op, keeps structure stable
         _draw_intro_page(c, child_name, page_w, page_h, safe)
         c.showPage()
 
@@ -536,7 +540,6 @@ def build_interior_pdf(
     c.save()
     buf.seek(0)
     return buf.getvalue()
-
 
 # =========================================================
 # 6) COVER
@@ -616,13 +619,11 @@ def build_cover_wrap_pdf(child_name: str, page_count: int, paper_type: str) -> b
     buf.seek(0)
     return buf.getvalue()
 
-
 # =========================================================
 # 7) SESSION STATE
 # =========================================================
 if "assets" not in st.session_state:
     st.session_state.assets = None
-
 
 # =========================================================
 # 8) UI
@@ -643,23 +644,10 @@ with st.container(border=True):
 
     with col1:
         child_name = st.text_input("Vorname des Kindes", value="Eddie", placeholder="z.B. Lukas")
-
-        child_age = st.number_input(
-            "Alter des Kindes",
-            min_value=3,
-            max_value=99,
-            value=4,
-            step=1,
-        )
+        child_age = st.number_input("Alter des Kindes", min_value=3, max_value=99, value=4, step=1)
 
     with col2:
-        user_page_count = st.number_input(
-            "Seitenanzahl (Innen)",
-            min_value=1,
-            max_value=300,
-            value=DEFAULT_PAGES,
-            step=1,
-        )
+        user_page_count = st.number_input("Seitenanzahl (Innen)", min_value=1, max_value=300, value=DEFAULT_PAGES, step=1)
 
     paper_type = st.selectbox("Papier-Typ (Spine)", options=list(PAPER_FACTORS.keys()), index=0)
     kdp_print_mode = st.toggle("KDP-Druckmodus (Trim + Bleed)", value=True)
@@ -683,7 +671,7 @@ with st.container(border=True):
     fixed = int(include_intro) + int(include_outro)
     photo_pages_hint = max(1, normalized_pages - fixed)
 
-    page_w, page_h, _, _ = _page_geometry(kdp_print_mode)
+    page_w, page_h, _, _ = _page_geometry(bool(kdp_print_mode))
     target_px_hint = int(round((min(page_w, page_h) / inch) * DPI))
 
     st.caption(
@@ -697,7 +685,6 @@ with st.container(border=True):
 
 can_build = bool(child_name.strip()) and bool(uploads)
 
-
 # =========================================================
 # 9) BUILD
 # =========================================================
@@ -710,17 +697,17 @@ if st.button("🚀 Questbuch generieren", disabled=not can_build):
             page_count_kdp = _normalize_page_count(int(user_page_count), include_intro, include_outro)
 
             progress.progress(15, text="Preflight…")
-            ok_ct, warn_ct, target_px = preflight_uploads_for_300dpi(uploads, kdp_print_mode)
+            ok_ct, warn_ct, target_px = preflight_uploads_for_300dpi(uploads, bool(kdp_print_mode))
 
             progress.progress(45, text="Interior (Quest)…")
             interior_pdf = build_interior_pdf(
                 child_name.strip(),
                 uploads,
                 page_count_kdp,
-                eddie_inside,
-                kdp_print_mode,
-                include_intro,
-                include_outro,
+                bool(eddie_inside),
+                bool(kdp_print_mode),
+                bool(include_intro),
+                bool(include_outro),
                 preflight_ok=ok_ct,
                 preflight_warn=warn_ct,
                 preflight_target_px=target_px,
@@ -729,7 +716,7 @@ if st.button("🚀 Questbuch generieren", disabled=not can_build):
             )
 
             progress.progress(70, text="CoverWrap…")
-            cover_pdf = build_cover_wrap_pdf(child_name.strip(), page_count_kdp, paper_type)
+            cover_pdf = build_cover_wrap_pdf(child_name.strip(), int(page_count_kdp), paper_type)
 
             progress.progress(82, text="Cover Preview…")
             preview_png = build_front_cover_preview_png(child_name.strip(), size_px=900)
@@ -768,7 +755,6 @@ if st.button("🚀 Questbuch generieren", disabled=not can_build):
             progress.progress(100, text="Fertig ✅")
 
         st.success("Questbuch-Assets erfolgreich generiert!")
-
 
 # =========================================================
 # 10) OUTPUT
