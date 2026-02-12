@@ -139,3 +139,86 @@ def embed_image(
             c.restoreState()
         # Silent fallback
         return
+# ==========================
+# PRO ICON PACK – JOB SET
+# ==========================
+
+def draw_icon_hammer(c, x, y, size):
+    c.saveState()
+    _icon_style(c, size)
+    c.line(x + size*0.2, y + size*0.8, x + size*0.8, y + size*0.2)
+    c.rect(x + size*0.55, y + size*0.6, size*0.35, size*0.15, stroke=1, fill=0)
+    c.setFillColor(EDDIE_PURPLE)
+    c.circle(x + size*0.2, y + size*0.8, size*0.06, fill=1, stroke=0)
+    c.restoreState()
+
+
+def draw_icon_wrench(c, x, y, size):
+    c.saveState()
+    _icon_style(c, size)
+    c.line(x + size*0.25, y + size*0.25, x + size*0.75, y + size*0.75)
+    c.arc(x + size*0.6, y + size*0.6, x + size*0.9, y + size*0.9, 30, 300)
+    c.setFillColor(EDDIE_PURPLE)
+    c.circle(x + size*0.75, y + size*0.75, size*0.05, fill=1, stroke=0)
+    c.restoreState()
+
+
+def draw_icon_gear(c, x, y, size):
+    c.saveState()
+    _icon_style(c, size)
+    c.circle(x + size*0.5, y + size*0.5, size*0.3, stroke=1, fill=0)
+    c.circle(x + size*0.5, y + size*0.5, size*0.1, stroke=1, fill=0)
+    c.setFillColor(EDDIE_PURPLE)
+    c.circle(x + size*0.5, y + size*0.8, size*0.05, fill=1, stroke=0)
+    c.restoreState()
+
+
+def draw_icon_medical_cross(c, x, y, size):
+    c.saveState()
+    _icon_style(c, size)
+    c.rect(x + size*0.4, y + size*0.2, size*0.2, size*0.6, stroke=1, fill=0)
+    c.rect(x + size*0.2, y + size*0.4, size*0.6, size*0.2, stroke=1, fill=0)
+    c.setFillColor(EDDIE_PURPLE)
+    c.circle(x + size*0.5, y + size*0.9, size*0.05, fill=1, stroke=0)
+    c.restoreState()
+
+
+def draw_icon_briefcase(c, x, y, size):
+    c.saveState()
+    _icon_style(c, size)
+    c.rect(x + size*0.2, y + size*0.3, size*0.6, size*0.45, stroke=1, fill=0)
+    c.rect(x + size*0.4, y + size*0.75, size*0.2, size*0.1, stroke=1, fill=0)
+    c.setFillColor(EDDIE_PURPLE)
+    c.circle(x + size*0.8, y + size*0.5, size*0.05, fill=1, stroke=0)
+    c.restoreState()
+
+
+def draw_icon_book_open(c, x, y, size):
+    c.saveState()
+    _icon_style(c, size)
+    c.rect(x + size*0.2, y + size*0.3, size*0.3, size*0.5, stroke=1, fill=0)
+    c.rect(x + size*0.5, y + size*0.3, size*0.3, size*0.5, stroke=1, fill=0)
+    c.line(x + size*0.5, y + size*0.3, x + size*0.5, y + size*0.8)
+    c.setFillColor(EDDIE_PURPLE)
+    c.circle(x + size*0.5, y + size*0.85, size*0.05, fill=1, stroke=0)
+    c.restoreState()
+
+
+def draw_icon_fork_knife(c, x, y, size):
+    c.saveState()
+    _icon_style(c, size)
+    c.line(x + size*0.3, y + size*0.2, x + size*0.3, y + size*0.85)
+    c.line(x + size*0.6, y + size*0.2, x + size*0.6, y + size*0.85)
+    c.setFillColor(EDDIE_PURPLE)
+    c.circle(x + size*0.6, y + size*0.85, size*0.05, fill=1, stroke=0)
+    c.restoreState()
+
+
+def draw_icon_computer(c, x, y, size):
+    c.saveState()
+    _icon_style(c, size)
+    c.rect(x + size*0.2, y + size*0.4, size*0.6, size*0.4, stroke=1, fill=0)
+    c.line(x + size*0.4, y + size*0.3, x + size*0.6, y + size*0.3)
+    c.setFillColor(EDDIE_PURPLE)
+    c.circle(x + size*0.8, y + size*0.6, size*0.05, fill=1, stroke=0)
+    c.restoreState()
