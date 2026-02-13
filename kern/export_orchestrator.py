@@ -37,7 +37,7 @@ def run_export(mode: str, data: Dict[str, Any], **kwargs) -> bytes:
             raise NotImplementedError("Trainer Cards Export noch nicht verdrahtet.")
 
     # -----------------------------
-    # LEGACY (dein aktuelles items-Format)
+    # LEGACY: dein aktuelles items-Format
     # -----------------------------
     if mode == "A4 Arbeitsblatt" and isinstance(data.get("items"), list):
         return _export_a4_legacy_items_via_trainer(data, **kwargs)
@@ -47,13 +47,11 @@ def run_export(mode: str, data: Dict[str, Any], **kwargs) -> bytes:
 
 def _export_a4_legacy_items_via_trainer(data: Dict[str, Any], **kwargs) -> bytes:
     """
-    Adapter, damit dein aktuelles A4-Format weiter läuft:
+    Adapter, damit dein altes Payload weiter läuft:
       data = {"items":[{term, icon_slug, examples, note_prompt}, ...]}
 
-    Wir mappen es in trainer_v2 Schema und nutzen export_trainer_a4.
-    (Die Legacy-Felder examples/note_prompt werden aktuell NICHT übernommen,
-     weil export_trainer_a4 bewusst offline-minimalistisch ist.
-     Wenn du willst, erweitern wir trainer_a4 um optional 'examples'/'note_prompt'.)
+    Wir mappen in trainer_v2 Schema und nutzen export_trainer_a4.
+    (Legacy examples/note_prompt werden aktuell nicht gerendert – kann ich dir als Patch nachziehen.)
     """
     subject = str((data.get("subject") or "")).strip()
 
@@ -71,7 +69,6 @@ def _export_a4_legacy_items_via_trainer(data: Dict[str, Any], **kwargs) -> bytes
         "vocab": vocab,
         "assets": {"images": []},
         "options": {
-            # sinnvolle Defaults – kann das UI später überschreiben
             "writing_lines_per_page": 5,
         },
     }
