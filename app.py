@@ -235,21 +235,14 @@ def _page_geometry(kdp: bool) -> Tuple[float, float, float, float]:
 
 
 def _draw_kdp_debug_guides(c: canvas.Canvas, pw: float, ph: float, bleed: float, safe: float):
-    """
-    Draws:
-      - Bleed box (red): page trim area inside the bleed margin
-      - Safe box (green): safe area inside bleed+safe margin
-    """
     c.saveState()
     c.setLineWidth(DEBUG_LINE_W)
     c.setDash(3, 3)  # gestrichelt
 
-    # Bleed/Trim guide: show trim area (inside bleed)
     if bleed > 0:
         c.setStrokeColor(DEBUG_BLEED_COLOR)
         c.rect(bleed, bleed, pw - 2 * bleed, ph - 2 * bleed, stroke=1, fill=0)
 
-    # Safe guide (inside safe margin)
     c.setStrokeColor(DEBUG_SAFE_COLOR)
     c.rect(safe, safe, pw - 2 * safe, ph - 2 * safe, stroke=1, fill=0)
 
@@ -273,7 +266,6 @@ def _draw_quest_overlay(c: canvas.Canvas, pw: float, ph: float, bleed: float, sa
 
     c.saveState()
 
-    # Header
     c.setFillColor(fill)
     c.setStrokeColor(INK_BLACK)
     c.setLineWidth(1)
@@ -286,7 +278,6 @@ def _draw_quest_overlay(c: canvas.Canvas, pw: float, ph: float, bleed: float, sa
     _set_font(c, False, 10)
     c.drawString(x0 + 0.18 * inch, y0 + 0.18 * inch, f"{zone.quest_type} • {zone.atmosphere}")
 
-    # Card area
     cy = safe
     max_ch = (y0 - safe) - (0.15 * inch)
     pad_x = 0.18 * inch
@@ -294,12 +285,10 @@ def _draw_quest_overlay(c: canvas.Canvas, pw: float, ph: float, bleed: float, sa
     sc = _autoscale_mission_text(mission, w, x0, pad_x, max_ch)
     card_h = min(max_ch, max(1.85 * inch, sc["needed"]))
 
-    # Card frame
     c.setFillColor(colors.white)
     c.setStrokeColor(INK_BLACK)
     c.rect(x0, cy, w, card_h, fill=1, stroke=1)
 
-    # Card content
     y = cy + card_h - 0.18 * inch
 
     c.setFillColor(INK_BLACK)
@@ -328,7 +317,6 @@ def _draw_quest_overlay(c: canvas.Canvas, pw: float, ph: float, bleed: float, sa
         c.drawString(x0 + 0.90 * inch, yy, l)
         yy -= sc["bl"]
 
-    # Proof row
     bx, box = x0 + pad_x, 0.20 * inch
     c.rect(bx, cy + 0.18 * inch, box, box, fill=0, stroke=1)
 
@@ -346,7 +334,7 @@ def _draw_quest_overlay(c: canvas.Canvas, pw: float, ph: float, bleed: float, sa
 
 
 # =========================================================
-# 5) PDF BUILDERS (INTERIOR & COVER)
+# 5) PDF BUILDERS (INTERIOR & COVER & LISTING)
 # =========================================================
 def _draw_eddie(c: canvas.Canvas, cx: float, cy: float, r: float):
     c.saveState()
@@ -448,6 +436,7 @@ def build_interior(name: str, uploads, pages: int, eddie_mark: bool, kdp: bool, 
 
 def build_cover(name: str, pages: int, paper: str) -> bytes:
     sw = float(pages) * PAPER_FACTORS.get(paper, 0.002252) * inch
+    sw = max(sw, 0.001 * inch)  # Defensiv gegen extrem dünne Spines
     cw, ch = (2 * TRIM) + sw + (2 * BLEED), TRIM + (2 * BLEED)
 
     buf = io.BytesIO()
@@ -481,6 +470,39 @@ def build_cover(name: str, pages: int, paper: str) -> bytes:
     buf.seek(0)
     return buf.getvalue()
 
+def build_listing_text(child_name: str) -> str:
+    cn = (child_name or "").strip()
+    title = "Eddies" if cn.lower() in {"eddie", "eddies"} else f"Eddies & {cn}"
+    keywords = [
+        "personalisiertes malbuch kinder",
+        "malbuch mit eigenen fotos",
+        "geschenk kinder personalisiert",
+        "kinder malbuch ab 4 jahre",
+        "abenteuer buch kinder",
+        "24 missionen kinder",
+        "ausmalbilder aus fotos"
+    ]
+    html = f"""<h3>24 Stunden. 24 Missionen. Dein Kind als Held.</h3>
+<p>Aus deinen Fotos entstehen Ausmalbilder – und jede Seite enthält eine Mini-Quest:
+<b>Bewegung</b> + <b>Denkaufgabe</b> + <b>XP</b> zum Abhaken.</p>
+<ul>
+  <li><b>Personalisiert:</b> Seiten basieren auf deinen hochgeladenen Bildern.</li>
+  <li><b>24h-Quest-System:</b> Zeit → Zone → Mission (spielerisch, ohne Druck).</li>
+  <li><b>Druckoptimiert:</b> 300 DPI Layout, klare Schwarzwerte, saubere Ränder.</li>
+</ul>
+<p><i>Eddies bleibt schwarz-weiß als Guide – dein Kind macht die Welt bunt.</i></p>
+"""
+    return "\n".join([
+        "READY-TO-PUBLISH LISTING BUNDLE",
+        f"TITEL: {title}",
+        "",
+        "KEYWORDS (7 Felder):",
+        "\n".join([f"{i+1}. {k}" for i, k in enumerate(keywords)]),
+        "",
+        "BESCHREIBUNG (HTML):",
+        html
+    ])
+
 
 # =========================================================
 # 6) UI & SESSION HANDLING
@@ -510,14 +532,55 @@ with st.container(border=True):
         name = st.text_input("Name", value="Eddie")
         age = st.number_input("Alter", 3, 99, 5)
     with col2:
-        pages = st.number_input("Seiten", KDP_MIN_PAGES, 300, KDP_MIN_PAGES)
+        if "pages" not in st.session_state:
+            st.session_state.pages = KDP_MIN_PAGES
+
+        pages = st.number_input("Seiten", KDP_MIN_PAGES, 300, int(st.session_state.pages), key="pages")
+
+        # KDP/Print: Seitenzahl immer gerade halten (state-safe)
+        if int(pages) % 2 != 0:
+            st.info("ℹ️ Seitenzahl wurde auf die nächste gerade Zahl angehoben (Print-Safety).")
+            st.session_state.pages = int(pages) + 1
+            pages = int(st.session_state.pages)
+            
         paper = st.selectbox("Papier", list(PAPER_FACTORS.keys()))
 
     kdp = st.toggle("KDP-Mode (Bleed)", True)
     debug_guides = st.toggle("🧪 KDP Preflight Debug (Bleed/Safe)", False)
     uploads = st.file_uploader("Fotos", accept_multiple_files=True, type=["jpg", "png", "jpeg"])
 
-if st.button("🚀 Buch generieren", disabled=not (name and uploads)):
+can_build = False
+override_res = False
+
+if uploads and name:
+    pw, ph, _, _ = _page_geometry(bool(kdp))
+    target_px = int(min(pw, ph) * DPI / inch)  # z.B. 2625px für KDP Bleed
+
+    small_files = []
+    for up in uploads:
+        up.seek(0)
+        try:
+            with Image.open(up) as img:
+                w, h = img.size
+                if min(w, h) < target_px:
+                    small_files.append((up.name, w, h))
+        except Exception:
+            pass  # Ignorieren, Fehler fliegen später beim Sketching
+        finally:
+            up.seek(0)
+
+    if small_files:
+        st.warning(f"⚠️ {len(small_files)} Foto(s) sind kleiner als die empfohlene Zielauflösung ({target_px}px). Das kann zu unscharfem Druck führen.")
+        with st.expander("Details ansehen"):
+            for sf, fw, fh in small_files:
+                st.write(f"- {sf} ({fw}x{fh} px)")
+        override_res = st.toggle("🚨 Warnung ignorieren und trotzdem generieren (Auf eigene Gefahr)", False)
+        can_build = override_res
+    else:
+        st.success(f"✅ Alle {len(uploads)} Fotos erfüllen die 300-DPI-Anforderung (≥ {target_px}px).")
+        can_build = True
+
+if st.button("🚀 Buch generieren", disabled=not can_build):
     with st.spinner("AUTO-SCALE & PDF-Hardening..."):
         diff = 1 if age <= 4 else 2 if age <= 6 else 3 if age <= 9 else 4
 
@@ -539,6 +602,8 @@ if st.button("🚀 Buch generieren", disabled=not (name and uploads)):
             pages=int(pages),
             paper=paper,
         )
+        
+        listing_txt = build_listing_text(name)
 
         if st.session_state.assets:
             for f in st.session_state.assets.values():
@@ -551,18 +616,22 @@ if st.button("🚀 Buch generieren", disabled=not (name and uploads)):
         st.session_state.assets = {
             "int": _tmp("int_", ".pdf", int_pdf),
             "cov": _tmp("cov_", ".pdf", cov_pdf),
+            "listing": _tmp("list_", ".txt", listing_txt.encode("utf-8")),
             "name": name,
         }
         st.success("KDP-Assets bereit!")
 
 if st.session_state.assets:
     a = st.session_state.assets
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         with open(a["int"], "rb") as f:
             st.download_button("📘 Interior", f, file_name=f"Int_{a['name']}.pdf")
     with col2:
         with open(a["cov"], "rb") as f:
             st.download_button("🎨 Cover", f, file_name=f"Cov_{a['name']}.pdf")
+    with col3:
+        with open(a["listing"], "rb") as f:
+            st.download_button("📝 Listing (SEO)", f, file_name=f"Listing_{a['name']}.txt")
 
 st.markdown("<div style='text-align:center; color:grey;'>Eddies Welt © 2026</div>", unsafe_allow_html=True)
