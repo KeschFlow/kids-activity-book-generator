@@ -436,7 +436,8 @@ def build_interior(name: str, uploads, pages: int, eddie_mark: bool, kdp: bool, 
 
 def build_cover(name: str, pages: int, paper: str) -> bytes:
     sw = float(pages) * PAPER_FACTORS.get(paper, 0.002252) * inch
-    sw = max(sw, 0.001 * inch)  # Defensiv gegen extrem dünne Spines
+    sw = max(sw, 0.001 * inch)
+    sw = round(sw / (0.001 * inch)) * (0.001 * inch)  # Subpixel-Rounding Prävention
     cw, ch = (2 * TRIM) + sw + (2 * BLEED), TRIM + (2 * BLEED)
 
     buf = io.BytesIO()
@@ -532,16 +533,14 @@ with st.container(border=True):
         name = st.text_input("Name", value="Eddie")
         age = st.number_input("Alter", 3, 99, 5)
     with col2:
-        if "pages" not in st.session_state:
-            st.session_state.pages = KDP_MIN_PAGES
-
+        st.session_state.setdefault("pages", KDP_MIN_PAGES)
         pages = st.number_input("Seiten", KDP_MIN_PAGES, 300, int(st.session_state.pages), key="pages")
 
         # KDP/Print: Seitenzahl immer gerade halten (state-safe)
         if int(pages) % 2 != 0:
             st.info("ℹ️ Seitenzahl wurde auf die nächste gerade Zahl angehoben (Print-Safety).")
             st.session_state.pages = int(pages) + 1
-            pages = int(st.session_state.pages)
+            pages = st.session_state.pages
             
         paper = st.selectbox("Papier", list(PAPER_FACTORS.keys()))
 
