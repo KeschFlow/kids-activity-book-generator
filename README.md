@@ -1,19 +1,23 @@
-# 🐶 Eddies – Quest & Activity Print Engine
+# 🐶 Eddies Print Engine
 
-**Eddies** ist eine modulare Streamlit-Anwendung zur Generierung von  
-druckfertigen **Quest-, Activity- und Workbook-Büchern** als PDF.
+**Eddies** ist eine deterministische **Print-PDF-Engine** für Quest-, Activity- und Workbook-Bücher —  
+inkl. **Bleed/Safe-Zones**, **300-DPI Preflight**, **CoverWrap/Spine** und **Listing-Assets**.
 
-Sie kombiniert:
+**Fokus:** drucktechnische Korrektheit, reproduzierbare Builds (Seed), RAM-only Verarbeitung.
 
-- 📸 Foto → Sketch-Transformation  
-- 🧭 24h-Quest-System (Gamification ohne Wettbewerb)  
-- 🧠 Bewegung + Denken + XP  
-- 🖨️ KDP-kompatible Print-Pipeline  
-- 🔒 RAM-only Privacy-Verarbeitung  
+## Outputs
+- ✅ Interior PDF (Print/Preview)
+- ✅ CoverWrap PDF (Back + Spine + Front)
+- ✅ Listing.txt (SEO/Textbundle)
+- ✅ Optional: ZIP Bundle (alle Assets)
 
-> Fokus: deterministische Outputs, drucktechnische Korrektheit, Zero-Daten-Speicherung.
+## Key Features
+- 📸 Foto → Sketch (OpenCV) + Center-Crop + 300-DPI Resize
+- 🧭 24h Quest-System (Zonen + Mission Overlay: Bewegung / Denken / Proof / XP)
+- 🖨️ Print-Safety: Bleed/Safe, min. Seiten, gerade Seitenzahl, Preflight-Checks
+- 🔁 Deterministisch: reproduzierbare Seiten & Missionen via stable seed
+- 🔒 Privacy: Uploads werden nicht gespeichert (RAM-only)
 
----
 
 # 🧠 System-Architektur
 
