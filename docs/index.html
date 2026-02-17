@@ -4,69 +4,117 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Eddies Questbuch – Start</title>
-  <meta name="description" content="Fotos hochladen, PDF erstellen, zuhause ausdrucken: Eddies Questbuch." />
+  <meta name="description" content="Fotos hochladen → PDF erstellen → zuhause ausdrucken: Eddies Questbuch (Beta)." />
   <style>
     :root { --bg:#0b0f17; --card:#121a27; --text:#eef2ff; --muted:#b8c0d9; --accent:#7dd3fc; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background: radial-gradient(1200px 700px at 20% 0%, #152040, var(--bg)); color:var(--text); }
-    .wrap { max-width: 860px; margin: 0 auto; padding: 28px 18px 60px; }
-    .card { background: rgba(18,26,39,.9); border:1px solid rgba(255,255,255,.08); border-radius: 22px; padding: 22px; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
-    h1 { font-size: 30px; margin: 0 0 6px; }
-    .sub { color: var(--muted); margin: 0 0 18px; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: radial-gradient(1200px 700px at 20% 0%, #152040, var(--bg)); color:var(--text); }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 28px 18px 70px; }
+    .card { background: rgba(18,26,39,.92); border:1px solid rgba(255,255,255,.08); border-radius: 22px; padding: 22px; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+    h1 { font-size: 34px; margin: 14px 0 6px; }
+    .sub { color: var(--muted); margin: 0 0 18px; line-height:1.35; }
     .grid { display:grid; gap: 14px; grid-template-columns: 1fr; margin-top: 14px; }
-    @media (min-width: 760px){ .grid{ grid-template-columns: 1.2fr .8fr; } }
-    .step { background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 14px; }
+    @media (min-width: 860px){ .grid{ grid-template-columns: 1.2fr .8fr; } }
+    .step { background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10); border-radius: 16px; padding: 14px; line-height:1.35; }
     .step b { color: var(--accent); }
     .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 14px; }
-    a.btn { display:inline-block; padding: 12px 14px; border-radius: 14px; text-decoration:none; font-weight:700; }
+    a.btn { display:inline-block; padding: 12px 14px; border-radius: 14px; text-decoration:none; font-weight:800; }
     a.primary { background: var(--accent); color:#001018; }
     a.ghost { border:1px solid rgba(255,255,255,.18); color: var(--text); }
-    .small { font-size: 13px; color: var(--muted); margin-top: 14px; line-height: 1.4; }
-    code { background: rgba(0,0,0,.25); padding: 2px 6px; border-radius: 8px; }
-    .badge { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.25); color: var(--accent); font-weight:700; font-size: 12px; }
+    a.soft { background: rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.25); color: var(--text); }
+    .small { font-size: 13px; color: var(--muted); margin-top: 14px; line-height: 1.45; }
+    code { background: rgba(0,0,0,.25); padding: 2px 6px; border-radius: 8px; border:1px solid rgba(255,255,255,.10); }
+    .badge { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.25); color: var(--accent); font-weight:800; font-size: 12px; letter-spacing:.2px; }
+    .footer { margin-top: 18px; color: var(--muted); font-size: 13px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .footer a { color: var(--text); text-decoration:none; border-bottom: 1px dashed rgba(255,255,255,.25); }
+    .callout{ border-left: 4px solid rgba(125,211,252,.55); padding: 12px; background: rgba(125,211,252,.06); border-radius: 14px; border:1px solid rgba(125,211,252,.20); color: var(--muted); line-height:1.45; margin-top:14px; }
+    .callout strong{ color: var(--text); }
+    .pill { display:inline-block; padding: 6px 10px; border-radius: 999px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="badge">Eddies Welt • Zuhause-Druck</div>
+    <div class="badge">Eddies Welt • Beta • Zuhause-Druck</div>
+
     <h1>Eddies Questbuch – so funktioniert’s</h1>
-    <p class="sub">Fotos rein → PDF raus → zuhause ausdrucken. Ohne Stress. Ohne “richtig/falsch”.</p>
+    <p class="sub">Fotos rein → PDF raus → zuhause ausdrucken. Ohne Stress. Ohne „richtig/falsch“.</p>
 
     <div class="grid">
       <div class="card">
         <h2 style="margin:0 0 10px;">In 3 Schritten</h2>
 
         <div class="step"><b>1) Fotos auswählen</b><br/>Am besten 10–24 Fotos (Alltag, Familie, Spielsachen, Haustier…).</div>
-        <div class="step"><b>2) Buch erstellen</b><br/>Die App macht aus den Fotos Skizzen + Missionen (Bewegung & Denken).</div>
-        <div class="step"><b>3) Zuhause drucken</b><br/>PDF öffnen → Drucker → ggf. “An Seite anpassen” aktivieren → lochen/abheften.</div>
+        <div class="step"><b>2) Buch erstellen</b><br/>Die App macht aus den Fotos Skizzen + Aufgaben.</div>
+        <div class="step"><b>3) Zuhause drucken</b><br/>PDF öffnen → Drucker → ggf. <code>An Seite anpassen</code> → lochen/abheften.</div>
 
         <div class="btns">
-          <!-- ✅ HIER MUSS DER ECHTE APP-LINK STEHEN -->
-          <a class="btn primary" href="https://eddiesworld.streamlit.app" target="_blank" rel="noopener">
-            Zur App (PDF erstellen)
-          </a>
+          <a class="btn primary" id="appQuest" href="https://eddiesworld.streamlit.app" target="_blank" rel="noopener">Questbuch starten</a>
+          <a class="btn soft" id="appLang" href="https://eddiesworld.streamlit.app" target="_blank" rel="noopener">Sprachunterricht starten</a>
           <a class="btn ghost" href="#drucktipps">Druck-Tipps</a>
+          <a class="btn ghost" href="#feedback">Feedback</a>
+        </div>
+
+        <div class="callout">
+          <strong>Foto-Rechte & Privacy:</strong><br/>
+          Bitte nur Bilder hochladen, an denen du die Rechte hast / Zustimmung vorliegt. Keine sensiblen Inhalte.
         </div>
 
         <p class="small">
-          Tipp: Wenn die App mal langsam ist, einfach später nochmal öffnen – dieser Link bleibt gleich.
+          <span class="pill">Kontakt</span>
+          <a href="mailto:eddiekeschflow@gmail.com">eddiekeschflow@gmail.com</a>
         </p>
+
+        <div class="footer">
+          <span>Rechtliches:</span>
+          <a href="./impressum.html">Impressum</a>
+          <a href="./datenschutz.html">Datenschutz</a>
+          <a href="./nutzungsbedingungen.html">Nutzungsbedingungen</a>
+        </div>
       </div>
 
       <div class="card" id="drucktipps">
         <h2 style="margin:0 0 10px;">Druck-Tipps</h2>
         <div class="step"><b>Format</b><br/>Am einfachsten: <code>A4</code> im Druckdialog.</div>
         <div class="step"><b>Skalierung</b><br/><code>An Seite anpassen</code> oder <code>100%</code> (je nach Drucker).</div>
-        <div class="step"><b>Papier</b><br/>Normales Papier geht. Für “Premium”: 120–160g.</div>
-        <div class="step"><b>Heften</b><br/>Lochen + Ordner / Heftklammer / Klemmschiene.</div>
-        <p class="small">
-          Hinweis: Das Buch ist für Kinder gemacht – Kritzel, Male, mach’s zu deinem.
-        </p>
+        <div class="step"><b>Papier</b><br/>Normal geht. Premium: 120–160g.</div>
+        <div class="step"><b>Heften</b><br/>Lochen + Ordner / Klemmschiene / Heftklammer.</div>
+
+        <h2 style="margin:16px 0 10px;">Sprachunterricht (Version)</h2>
+        <div class="step"><b>Idee</b><br/>Bild → Wörter/Sätze → kleine Aufgaben (je nach Alter/Level).</div>
+        <p class="small">Hinweis: Landing ist fertig. Die App kann später auf <code>?mode=lang</code> reagieren.</p>
       </div>
     </div>
 
-    <p class="small" style="margin-top:16px;">
-      Wenn du den QR-Code scannst, landest du immer zuerst hier – damit klar ist, was als Nächstes zu tun ist.
-    </p>
+    <div class="card" id="feedback" style="margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Feedback</h2>
+      <div class="step"><b>1 Satz reicht:</b><br/>Was war gut? Was war nervig? Was fehlt?</div>
+      <div class="btns">
+        <a class="btn ghost"
+           href="mailto:eddiekeschflow@gmail.com?subject=Eddies%20Beta%20Feedback&body=Was%20war%20gut%3F%0AWas%20war%20schlecht%3F%0AWelches%20Feature%20fehlt%3F"
+           target="_blank" rel="noopener">Feedback per Mail</a>
+      </div>
+    </div>
+
+    <p class="small" style="margin-top:16px;">QR-Code führt immer hierher – damit jeder sofort weiß, was als Nächstes zu tun ist.</p>
+    <p class="small" style="opacity:.7; text-align:center;">Eddies Welt © 2026</p>
   </div>
+
+  <script>
+    (function(){
+      const params = new URLSearchParams(window.location.search);
+      if(!params.has("utm_source")) params.set("utm_source","qr");
+      if(!params.has("utm_medium")) params.set("utm_medium","landing");
+      if(!params.has("utm_campaign")) params.set("utm_campaign","beta");
+
+      const questUrl = new URL("https://eddiesworld.streamlit.app");
+      const langUrl  = new URL("https://eddiesworld.streamlit.app");
+
+      params.forEach((v,k)=>{ questUrl.searchParams.set(k,v); langUrl.searchParams.set(k,v); });
+      questUrl.searchParams.set("mode","quest");
+      langUrl.searchParams.set("mode","lang");
+
+      document.getElementById("appQuest").href = questUrl.toString();
+      document.getElementById("appLang").href  = langUrl.toString();
+    })();
+  </script>
 </body>
 </html>
