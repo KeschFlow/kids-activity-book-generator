@@ -429,7 +429,7 @@ def build_interior(
 
         sw, sh = pil.size
         s = min(sw, sh)
-        pil = pil.crop(((sw - s) // 2, (sh - s) // 2, (sw + s) // 2, (sh + s) // 2)).resize(
+        pil = pil.crop(((sw - s) // 2, (sh - s) // 2, (sw + s) // 2, (sw + s) // 2)).resize(
             (int(pw * DPI / inch), int(ph * DPI / inch)),
             Image.LANCZOS,
         )
@@ -581,6 +581,12 @@ with st.container(border=True):
             step=2,
             key="pages",
         )
+
+        # Safety: falls jemand per Tastatur odd reinschreibt
+        if int(pages) % 2 != 0:
+            st.info("ℹ️ Seitenzahl wurde auf die nächste gerade Zahl angehoben (Print-Safety).")
+            st.session_state.pages = int(pages) + 1
+            pages = int(st.session_state.pages)
 
         paper = st.selectbox("Papier", list(PAPER_FACTORS.keys()), key="paper")
 
