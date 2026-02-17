@@ -187,6 +187,7 @@ def _autoscale_mission_text(mission, w: float, x0: float, pad_x: float, max_card
     ts, bs, ls = 13, 10, 10
     sc = compute(ts, bs, ls)
 
+    # shrink stepwise
     while sc["needed"] > max_card_h and (ts > 11 or bs > 8 or ls > 8):
         if ts > 11:
             ts -= 1
@@ -196,6 +197,7 @@ def _autoscale_mission_text(mission, w: float, x0: float, pad_x: float, max_card
             ls -= 1
         sc = compute(ts, bs, ls)
 
+    # if still too tall: truncate lines
     if sc["needed"] > max_card_h:
         rem = max_card_h - (base_top + sc["tl"] + gap_title + (sc["ll"] * 2) + gap_sections + base_bottom)
         max_b = max(2, int(rem // sc["bl"]))
@@ -249,7 +251,7 @@ def _page_geometry(kdp: bool) -> Tuple[float, float, float, float]:
 def _draw_kdp_debug_guides(c: canvas.Canvas, pw: float, ph: float, bleed: float, safe: float):
     c.saveState()
     c.setLineWidth(DEBUG_LINE_W)
-    c.setDash(3, 3)
+    c.setDash(3, 3)  # gestrichelt
 
     if bleed > 0:
         c.setStrokeColor(DEBUG_BLEED_COLOR)
@@ -258,7 +260,7 @@ def _draw_kdp_debug_guides(c: canvas.Canvas, pw: float, ph: float, bleed: float,
     c.setStrokeColor(DEBUG_SAFE_COLOR)
     c.rect(safe, safe, pw - 2 * safe, ph - 2 * safe, stroke=1, fill=0)
 
-    c.setDash()
+    c.setDash()  # reset
     c.restoreState()
 
 
@@ -429,7 +431,9 @@ def build_interior(
 
         sw, sh = pil.size
         s = min(sw, sh)
-        pil = pil.crop(((sw - s) // 2, (sh - s) // 2, (sw + s) // 2, (sw + s) // 2)).resize(
+
+        # FIX: correct crop box (y2 must use sh, not sw)
+        pil = pil.crop(((sw - s) // 2, (sh - s) // 2, (sw + s) // 2, (sh + s) // 2)).resize(
             (int(pw * DPI / inch), int(ph * DPI / inch)),
             Image.LANCZOS,
         )
