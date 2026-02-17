@@ -3,10 +3,10 @@
 **Eddies** ist eine deterministische **Print-PDF-Engine** für Quest-, Activity- und Workbook-Bücher —  
 inkl. **Bleed/Safe-Zones**, **300-DPI Preflight**, **CoverWrap/Spine** und **Listing-Assets**.
 
-**Fokus:** drucktechnische Korrektheit, reproduzierbare Builds (Seed), RAM-only Verarbeitung.
+**Fokus:** drucktechnische Korrektheit, reproduzierbare Builds (stable seed / SHA-256), RAM-only Verarbeitung.
 
 ## Outputs
-- ✅ Interior PDF (Print/Preview)
+- ✅ Interior PDF (KDP-ready / Preview)
 - ✅ CoverWrap PDF (Back + Spine + Front)
 - ✅ Listing.txt (SEO/Textbundle)
 - ✅ Optional: ZIP Bundle (alle Assets)
