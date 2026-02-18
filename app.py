@@ -1,12 +1,9 @@
 # =========================================================
-# app.py (Eddies Questbook Edition 2026 — ACTIVE / WASH + KDP)
-# - Eddie as GUIDE: Black/White + Purple Tongue on every page
-# - KDP-READY: No page numbers, no author names, 300 DPI
-# - IMAGE WASH: sanitize uploads (fix broken EXIF/JPEG/PNG quirks)
-# - SKETCH: line-art (max white, clean outlines for coloring)
-# - HARD RULE: Interior pages >= 24 (enforced)
-# - METADATA: scrubbed
-# - UI: Image counter, preview slider, clean Streamlit
+# app.py (Eddies Questbook — ACTIVE + WASH + QUEST_DATA v3.1a)
+# - Works with your quest_data.py (pick_mission_for_time, get_hour_color, get_zone_for_hour, fmt_hour)
+# - IMAGE WASH integrated (image_wash.py) to prevent broken JPEG/EXIF crashes
+# - KDP: >= 24 pages (hard), no page numbers, scrubbed PDF metadata, 300 DPI render target
+# - Sketch: high-contrast line art (max white)
 # =========================================================
 from __future__ import annotations
 
@@ -143,7 +140,6 @@ def _stable_seed(s: str) -> int:
     h = hashlib.sha256((s or "").encode("utf-8")).digest()
     return int.from_bytes(h[:8], "big", signed=False)
 
-
 # =========================================================
 # 3) GEOMETRY + METADATA
 # =========================================================
@@ -180,7 +176,6 @@ def _scrub_pdf_metadata(c: canvas.Canvas) -> None:
 # =========================================================
 def _wash_bytes(b: bytes) -> bytes:
     if iw is None:
-        # fallback: return original bytes
         return b
     try:
         return iw.wash_image_bytes(b)
@@ -208,10 +203,6 @@ def _cv_sketch_from_bytes(img_bytes: bytes) -> np.ndarray:
 
 
 def _render_page_png_from_upload(upload_bytes: bytes, pw: float, ph: float) -> bytes:
-    """
-    - WASH -> decode -> line-art -> center-crop -> resize to page pixels @300DPI -> PNG bytes
-    - returns PNG bytes ready for ReportLab ImageReader
-    """
     washed = _wash_bytes(upload_bytes)
     sk = _cv_sketch_from_bytes(washed)
 
@@ -230,7 +221,6 @@ def _render_page_png_from_upload(upload_bytes: bytes, pw: float, ph: float) -> b
     pil.save(out, "PNG", optimize=True)
     out.seek(0)
 
-    # free mem
     del pil
     gc.collect()
 
@@ -296,7 +286,7 @@ def _draw_progress_dots(c: canvas.Canvas, x_right: float, y: float, current_idx:
 
 
 # =========================================================
-# 7) QUEST OVERLAY
+# 7) QUEST OVERLAY (MATCHES quest_data.py fields)
 # =========================================================
 def _draw_quest_overlay(c, pw, ph, safe, hour, mission, m_idx, m_total, xp_total):
     if qd is None:
@@ -306,7 +296,7 @@ def _draw_quest_overlay(c, pw, ph, safe, hour, mission, m_idx, m_total, xp_total
     x0, y0, w = safe, ph - safe - header_h, pw - 2 * safe
 
     zone = qd.get_zone_for_hour(hour)
-    z_rgb = qd.get_hour_color(hour)  # 0..1
+    z_rgb = qd.get_hour_color(hour)  # 0..1 floats
     fill = colors.Color(z_rgb[0], z_rgb[1], z_rgb[2])
     lum = (0.21 * z_rgb[0] + 0.71 * z_rgb[1] + 0.07 * z_rgb[2])
     tc = colors.white if lum < 0.45 else INK_BLACK
@@ -330,7 +320,7 @@ def _draw_quest_overlay(c, pw, ph, safe, hour, mission, m_idx, m_total, xp_total
     _draw_progress_dots(c, x0 + w - 0.18 * inch, y0 + header_h - 0.55 * inch, m_idx, m_total)
 
     # Mission Card
-    card_h = 1.85 * inch
+    card_h = 2.05 * inch
     c.setFillColor(colors.white)
     c.rect(x0, safe, w, card_h, fill=1, stroke=1)
 
@@ -339,12 +329,16 @@ def _draw_quest_overlay(c, pw, ph, safe, hour, mission, m_idx, m_total, xp_total
     c.drawString(x0 + 0.15 * inch, safe + card_h - 0.35 * inch, f"MISSION: {mission.title}")
     c.drawRightString(x0 + w - 0.15 * inch, safe + card_h - 0.35 * inch, f"+{int(mission.xp)} XP")
 
+    # Movement / Thinking / Proof (your Mission has proof)
     _set_font(c, True, 9)
-    c.drawString(x0 + 0.15 * inch, safe + 1.1 * inch, "BEWEGUNG:")
-    c.drawString(x0 + 0.15 * inch, safe + 0.6 * inch, "DENKEN:")
+    c.drawString(x0 + 0.15 * inch, safe + 1.35 * inch, "BEWEGUNG:")
+    c.drawString(x0 + 0.15 * inch, safe + 0.92 * inch, "DENKEN:")
+    c.drawString(x0 + 0.15 * inch, safe + 0.49 * inch, "BEWEIS:")
+
     _set_font(c, False, 9)
-    c.drawString(x0 + 1.1 * inch, safe + 1.1 * inch, (mission.movement or "")[:70])
-    c.drawString(x0 + 1.1 * inch, safe + 0.6 * inch, (mission.thinking or "")[:70])
+    c.drawString(x0 + 1.1 * inch, safe + 1.35 * inch, (mission.movement or "")[:90])
+    c.drawString(x0 + 1.1 * inch, safe + 0.92 * inch, (mission.thinking or "")[:90])
+    c.drawString(x0 + 1.1 * inch, safe + 0.49 * inch, (getattr(mission, "proof", "") or "")[:90])
 
     c.restoreState()
 
@@ -352,7 +346,7 @@ def _draw_quest_overlay(c, pw, ph, safe, hour, mission, m_idx, m_total, xp_total
 # =========================================================
 # 8) PDF BUILDERS (KDP)
 # =========================================================
-def build_interior(name, uploads, pages, kdp, start_hour, diff) -> bytes:
+def build_interior(name, uploads, pages, kdp, start_hour, diff, audience: str = "kid") -> bytes:
     if qd is None:
         raise RuntimeError(f"quest_data.py nicht verfügbar: {_QD_IMPORT_ERROR}")
 
@@ -379,10 +373,12 @@ def build_interior(name, uploads, pages, kdp, start_hour, diff) -> bytes:
     _scrub_pdf_metadata(c)
 
     seed_base = _stable_seed(name)
+
     missions = []
     for i in range(photo_count):
         h = (int(start_hour) + i) % 24
-        missions.append(qd.pick_mission_for_time(h, int(diff), int(seed_base ^ i)))
+        # IMPORTANT: matches your signature (hour, difficulty, seed, audience)
+        missions.append(qd.pick_mission_for_time(h, int(diff), int(seed_base ^ i), audience=audience))
 
     total_xp = sum(int(getattr(m, "xp", 0) or 0) for m in missions) or 1
     cum_xp = 0
@@ -394,6 +390,9 @@ def build_interior(name, uploads, pages, kdp, start_hour, diff) -> bytes:
     c.setFillColor(INK_BLACK)
     _set_font(c, True, 28)
     c.drawCentredString(pw / 2, safe + 1.5 * inch, f"Eddies & {name}")
+    _set_font(c, False, 12)
+    c.setFillColor(INK_GRAY_70)
+    c.drawCentredString(pw / 2, safe + 1.15 * inch, "24 Stunden • Missionen • XP")
     c.showPage()
 
     # Mission pages
@@ -410,7 +409,6 @@ def build_interior(name, uploads, pages, kdp, start_hour, diff) -> bytes:
         _draw_eddie_guide_stamp(c, pw, ph, safe, cum_xp, total_xp)
         c.showPage()
 
-        # memory
         del png_bytes, ib
         gc.collect()
 
@@ -421,6 +419,9 @@ def build_interior(name, uploads, pages, kdp, start_hour, diff) -> bytes:
     _set_font(c, True, 24)
     c.setFillColor(INK_BLACK)
     c.drawCentredString(pw / 2, safe + 1.0 * inch, "Quest abgeschlossen!")
+    _set_font(c, False, 12)
+    c.setFillColor(INK_GRAY_70)
+    c.drawCentredString(pw / 2, safe + 0.70 * inch, f"Score: {cum_xp} XP")
     c.showPage()
 
     c.save()
@@ -463,19 +464,20 @@ st.markdown(
     "<style>div[data-testid='stFileUploader'] small { display: none !important; }</style>",
     unsafe_allow_html=True,
 )
-st.markdown(f"<h1 style='text-align:center;'>{APP_TITLE} ULTIMATE 2026</h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align:center;'>{APP_TITLE}</h1>", unsafe_allow_html=True)
 
 if qd is None:
-    st.warning(f"quest_data.py fehlt/fehlerhaft: {_QD_IMPORT_ERROR}")
+    st.error(f"quest_data.py fehlt/fehlerhaft: {_QD_IMPORT_ERROR}")
 
 if iw is None:
-    st.info("image_wash.py nicht geladen (Upload-Wash aus). Für maximale Stabilität: image_wash.py ins Repo legen.")
+    st.warning("image_wash.py nicht geladen (Upload-Wash AUS). Für maximale Stabilität: image_wash.py ins Repo legen.")
 
 with st.container(border=True):
     c1, c2 = st.columns(2)
     with c1:
         name = st.text_input("Name", value="Eddie")
         age = st.number_input("Alter", 3, 12, 5)
+        audience = st.selectbox("Audience", ["kid", "adult", "senior"], index=0)
     with c2:
         pages = st.number_input("Seiten", KDP_MIN_PAGES, 100, 24, step=2)
         paper = st.selectbox("Papier", list(PAPER_FACTORS.keys()))
@@ -494,7 +496,7 @@ if st.button("🚀 KDP-Buch generieren", disabled=not (uploads and name)):
     else:
         with st.spinner("Erstelle druckfertige PDFs..."):
             diff = 1 if age <= 4 else 2 if age <= 6 else 3
-            int_pdf = build_interior(name, uploads, int(pages), True, 6, diff)
+            int_pdf = build_interior(name, uploads, int(pages), True, 6, diff, audience=audience)
             cov_pdf = build_cover(name, int(pages), paper)
 
             st.session_state.pdfs = {"int": int_pdf, "cov": cov_pdf, "name": name}
@@ -506,6 +508,49 @@ if "pdfs" in st.session_state:
     st.download_button("🎨 Cover (KDP)", p["cov"], f"Cov_{p['name']}.pdf")
 
 st.markdown(
-    "<div style='text-align:center; color:grey; margin-top:2rem;'>Eddies Welt © 2026 | Druckfertig für Amazon KDP</div>",
+    "<div style='text-align:center; color:grey; margin-top:2rem;'>Eddies Welt | Druckfertig für Amazon KDP</div>",
     unsafe_allow_html=True,
 )
+
+# =========================================================
+# image_wash.py (Eddies 2026 — UPLOAD SANITIZER)
+# - Fixes EXIF orientation
+# - Converts weird modes to RGB
+# - Removes alpha by compositing onto white
+# - Re-encodes clean JPEG for reliable OpenCV decode
+# =========================================================
+from __future__ import annotations
+
+import io
+from PIL import Image, ImageOps
+
+MAX_SIDE = 10000  # safety clamp
+
+
+def wash_image_bytes(b: bytes) -> bytes:
+    if not b:
+        raise ValueError("empty image bytes")
+
+    bio = io.BytesIO(b)
+    with Image.open(bio) as im:
+        im.load()
+        im = ImageOps.exif_transpose(im)
+
+        w, h = im.size
+        m = max(w, h)
+        if m > MAX_SIDE:
+            scale = MAX_SIDE / float(m)
+            im = im.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
+        if im.mode in ("RGBA", "LA"):
+            bg = Image.new("RGB", im.size, (255, 255, 255))
+            bg.paste(im, mask=im.split()[-1])
+            im = bg
+        elif im.mode != "RGB":
+            im = im.convert("RGB")
+
+        out = io.BytesIO()
+        im.save(out, format="JPEG", quality=95, optimize=True, progressive=True)
+        out.seek(0)
+        return out.getvalue()
+```0
