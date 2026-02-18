@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import io
 
-import gcimport os
+import gc
+import os
 import tempfile
 
 import warningsimport hashlib
