@@ -1,9 +1,5 @@
 streamlit==1.36.0
-<<<<<<< HEAD
-numpy==2.0.1
-=======
 numpy==1.26.4
->>>>>>> 803a575 (Pin python 3.12 + stable deps for opencv/numpy)
 opencv-python-headless==4.10.0.84
 Pillow==10.4.0
 reportlab==4.2.2
