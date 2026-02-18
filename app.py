@@ -814,19 +814,6 @@ override_res = False
 if uploads and name:
     pb = page_box(TRIM, TRIM, kdp_bleed=bool(kdp))
 
-    # 300 DPI check based on TRIM (not full bleed)
-    target_px = int((pb.trim_w / inch) * DPI)
-
-    small_files = []
-    for up in uploads:
-        data = up.getvalue()
-        try:
-            with Image.open(io.BytesIO(data)) as img:
-                w, h = img.size
-                if min(w, h) < target_px:
-                    small_files.append((up.name, w, h))
-        except Exception:
-            pass
 
     intro = True
     outro = True
@@ -841,16 +828,6 @@ if uploads and name:
     cB.metric("📄 Content-Seiten", content_pages)
     cC.metric("🔁 Reuse-Faktor", f"{reuse_factor:.1f}×" if n_uploads else "—")
 
-    if small_files:
-        st.warning(f"⚠️ {len(small_files)} Foto(s) < {target_px}px (Trim@300DPI). Druck kann weich werden.")
-        with st.expander("Details ansehen"):
-            for sf, fw, fh in small_files:
-                st.write(f"- {sf} ({fw}x{fh} px)")
-        override_res = st.toggle("🚨 Warnung ignorieren und trotzdem generieren (Auf eigene Gefahr)", False)
-        can_build = override_res
-    else:
-        st.success(f"✅ Alle Fotos erfüllen 300-DPI (Trim) ≥ {target_px}px.")
-        can_build = True
 
     # --- GOD MODE: Visualizer
     with st.expander("👁️ Layout-Röntgenblick (Visualizer)", expanded=False):
