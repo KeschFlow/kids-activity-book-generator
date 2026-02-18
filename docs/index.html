@@ -1,120 +1,198 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Eddies Questbuch – Start</title>
-  <meta name="description" content="Fotos hochladen → PDF erstellen → zuhause ausdrucken: Eddies Questbuch (Beta)." />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Eddies Questbuch – Malbuch aus Fotos (KDP-ready)</title>
+  <meta name="description" content="Fotos rein → KDP-ready PDF raus. In 2 Minuten ein personalisiertes Malbuch mit Eddie als Guide. Ohne Anmeldung." />
+  <meta name="robots" content="index,follow" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Eddies Questbuch – Malbuch aus Fotos (KDP-ready)" />
+  <meta property="og:description" content="Fotos rein → KDP-ready PDF raus. In 2 Minuten. Ohne Anmeldung." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://keschflow.github.io/eddies-print-engine/" />
+  <!-- optional: og:image, sobald du eins hast -->
+  <!-- <meta property="og:image" content="https://keschflow.github.io/eddies-print-engine/og.jpg" /> -->
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Eddies Questbuch – Malbuch aus Fotos" />
+  <meta name="twitter:description" content="Fotos rein → KDP-ready PDF raus. In 2 Minuten. Ohne Anmeldung." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
-    :root { --bg:#0b0f17; --card:#121a27; --text:#eef2ff; --muted:#b8c0d9; --accent:#7dd3fc; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: radial-gradient(1200px 700px at 20% 0%, #152040, var(--bg)); color:var(--text); }
-    .wrap { max-width: 920px; margin: 0 auto; padding: 28px 18px 70px; }
-    .card { background: rgba(18,26,39,.92); border:1px solid rgba(255,255,255,.08); border-radius: 22px; padding: 22px; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
-    h1 { font-size: 34px; margin: 14px 0 6px; }
-    .sub { color: var(--muted); margin: 0 0 18px; line-height:1.35; }
-    .grid { display:grid; gap: 14px; grid-template-columns: 1fr; margin-top: 14px; }
-    @media (min-width: 860px){ .grid{ grid-template-columns: 1.2fr .8fr; } }
-    .step { background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10); border-radius: 16px; padding: 14px; line-height:1.35; }
-    .step b { color: var(--accent); }
-    .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 14px; }
-    a.btn { display:inline-block; padding: 12px 14px; border-radius: 14px; text-decoration:none; font-weight:800; }
-    a.primary { background: var(--accent); color:#001018; }
-    a.ghost { border:1px solid rgba(255,255,255,.18); color: var(--text); }
-    a.soft { background: rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.25); color: var(--text); }
-    .small { font-size: 13px; color: var(--muted); margin-top: 14px; line-height: 1.45; }
-    code { background: rgba(0,0,0,.25); padding: 2px 6px; border-radius: 8px; border:1px solid rgba(255,255,255,.10); }
-    .badge { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.25); color: var(--accent); font-weight:800; font-size: 12px; letter-spacing:.2px; }
-    .footer { margin-top: 18px; color: var(--muted); font-size: 13px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    .footer a { color: var(--text); text-decoration:none; border-bottom: 1px dashed rgba(255,255,255,.25); }
-    .callout{ border-left: 4px solid rgba(125,211,252,.55); padding: 12px; background: rgba(125,211,252,.06); border-radius: 14px; border:1px solid rgba(125,211,252,.20); color: var(--muted); line-height:1.45; margin-top:14px; }
-    .callout strong{ color: var(--text); }
-    .pill { display:inline-block; padding: 6px 10px; border-radius: 999px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); }
+    body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    :root { --eddie: #7c3aed; }
+
+    /* Subtiler Dot-Pattern Hintergrund, robust ohne Tailwind-Sonderklassen */
+    .hero-bg {
+      background:
+        radial-gradient(circle at 1px 1px, rgba(124,58,237,.22) 1px, transparent 1px) 0 0 / 18px 18px,
+        radial-gradient(circle at 1px 1px, rgba(124,58,237,.12) 1px, transparent 1px) 9px 9px / 18px 18px;
+      mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
+      -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
+    }
+
+    .btn-primary {
+      background: var(--eddie);
+    }
+    .btn-primary:hover {
+      filter: brightness(.92);
+    }
   </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="badge">Eddies Welt • Beta • Zuhause-Druck</div>
-
-    <h1>Eddies Questbuch – so funktioniert’s</h1>
-    <p class="sub">Fotos rein → PDF raus → zuhause ausdrucken. Ohne Stress. Ohne „richtig/falsch“.</p>
-
-    <div class="grid">
-      <div class="card">
-        <h2 style="margin:0 0 10px;">In 3 Schritten</h2>
-
-        <div class="step"><b>1) Fotos auswählen</b><br/>Am besten 10–24 Fotos (Alltag, Familie, Spielsachen, Haustier…).</div>
-        <div class="step"><b>2) Buch erstellen</b><br/>Die App macht aus den Fotos Skizzen + Aufgaben.</div>
-        <div class="step"><b>3) Zuhause drucken</b><br/>PDF öffnen → Drucker → ggf. <code>An Seite anpassen</code> → lochen/abheften.</div>
-
-        <div class="btns">
-          <a class="btn primary" id="appQuest" href="https://eddiesworld.streamlit.app" target="_blank" rel="noopener">Questbuch starten</a>
-          <a class="btn soft" id="appLang" href="https://eddiesworld.streamlit.app" target="_blank" rel="noopener">Sprachunterricht starten</a>
-          <a class="btn ghost" href="#drucktipps">Druck-Tipps</a>
-          <a class="btn ghost" href="#feedback">Feedback</a>
-        </div>
-
-        <div class="callout">
-          <strong>Foto-Rechte & Privacy:</strong><br/>
-          Bitte nur Bilder hochladen, an denen du die Rechte hast / Zustimmung vorliegt. Keine sensiblen Inhalte.
-        </div>
-
-        <p class="small">
-          <span class="pill">Kontakt</span>
-          <a href="mailto:eddiekeschflow@gmail.com">eddiekeschflow@gmail.com</a>
-        </p>
-
-        <div class="footer">
-          <span>Rechtliches:</span>
-          <a href="./impressum.html">Impressum</a>
-          <a href="./datenschutz.html">Datenschutz</a>
-          <a href="./nutzungsbedingungen.html">Nutzungsbedingungen</a>
-        </div>
-      </div>
-
-      <div class="card" id="drucktipps">
-        <h2 style="margin:0 0 10px;">Druck-Tipps</h2>
-        <div class="step"><b>Format</b><br/>Am einfachsten: <code>A4</code> im Druckdialog.</div>
-        <div class="step"><b>Skalierung</b><br/><code>An Seite anpassen</code> oder <code>100%</code> (je nach Drucker).</div>
-        <div class="step"><b>Papier</b><br/>Normal geht. Premium: 120–160g.</div>
-        <div class="step"><b>Heften</b><br/>Lochen + Ordner / Klemmschiene / Heftklammer.</div>
-
-        <h2 style="margin:16px 0 10px;">Sprachunterricht (Version)</h2>
-        <div class="step"><b>Idee</b><br/>Bild → Wörter/Sätze → kleine Aufgaben (je nach Alter/Level).</div>
-        <p class="small">Hinweis: Landing ist fertig. Die App kann später auf <code>?mode=lang</code> reagieren.</p>
-      </div>
-    </div>
-
-    <div class="card" id="feedback" style="margin-top:14px;">
-      <h2 style="margin:0 0 10px;">Feedback</h2>
-      <div class="step"><b>1 Satz reicht:</b><br/>Was war gut? Was war nervig? Was fehlt?</div>
-      <div class="btns">
-        <a class="btn ghost"
-           href="mailto:eddiekeschflow@gmail.com?subject=Eddies%20Beta%20Feedback&body=Was%20war%20gut%3F%0AWas%20war%20schlecht%3F%0AWelches%20Feature%20fehlt%3F"
-           target="_blank" rel="noopener">Feedback per Mail</a>
-      </div>
-    </div>
-
-    <p class="small" style="margin-top:16px;">QR-Code führt immer hierher – damit jeder sofort weiß, was als Nächstes zu tun ist.</p>
-    <p class="small" style="opacity:.7; text-align:center;">Eddies Welt © 2026</p>
-  </div>
 
   <script>
-    (function(){
-      const params = new URLSearchParams(window.location.search);
-      if(!params.has("utm_source")) params.set("utm_source","qr");
-      if(!params.has("utm_medium")) params.set("utm_medium","landing");
-      if(!params.has("utm_campaign")) params.set("utm_campaign","beta");
+    // ✅ EINMAL hier setzen, fertig.
+    const APP_URL = "https://eddiesworld.streamlit.app";
 
-      const questUrl = new URL("https://eddiesworld.streamlit.app");
-      const langUrl  = new URL("https://eddiesworld.streamlit.app");
+    // Optional: UTM automatisch dranhängen (hilft später beim Tracking)
+    function appLink() {
+      const u = new URL(APP_URL);
+      u.searchParams.set("utm_source", "github_pages");
+      u.searchParams.set("utm_medium", "landing");
+      u.searchParams.set("utm_campaign", "eddies_questbook");
+      return u.toString();
+    }
 
-      params.forEach((v,k)=>{ questUrl.searchParams.set(k,v); langUrl.searchParams.set(k,v); });
-      questUrl.searchParams.set("mode","quest");
-      langUrl.searchParams.set("mode","lang");
-
-      document.getElementById("appQuest").href = questUrl.toString();
-      document.getElementById("appLang").href  = langUrl.toString();
-    })();
+    window.addEventListener("DOMContentLoaded", () => {
+      document.querySelectorAll("[data-app-link]").forEach(a => a.setAttribute("href", appLink()));
+    });
   </script>
+</head>
+
+<body class="bg-gray-50 text-gray-900 antialiased">
+  <!-- NAV -->
+  <header class="w-full">
+    <nav class="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
+      <div class="font-extrabold text-2xl tracking-tight flex items-center gap-2">
+        🐶 <span style="color:var(--eddie)">Eddies</span><span class="text-gray-900">Questbuch</span>
+      </div>
+
+      <div class="hidden md:flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-100">
+        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+        System Online • v5.x
+      </div>
+    </nav>
+  </header>
+
+  <!-- HERO -->
+  <main class="relative overflow-hidden">
+    <div class="absolute inset-0 hero-bg opacity-60"></div>
+
+    <section class="relative max-w-6xl mx-auto px-6 pt-16 pb-16 lg:pt-28 lg:pb-24 text-center">
+      <div class="max-w-3xl mx-auto">
+        <p class="inline-flex items-center gap-2 text-sm font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-3 py-1 rounded-full">
+          <span>⚡</span> Fotos rein → KDP-ready PDF raus
+        </p>
+
+        <h1 class="mt-6 text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.05]">
+          Dein Malbuch aus Fotos.<br />
+          <span style="color:var(--eddie)">In 2 Minuten fertig.</span>
+        </h1>
+
+        <p class="mt-6 text-xl md:text-2xl text-gray-600 leading-relaxed">
+          Lade Bilder hoch. Die Engine macht daraus klare Ausmal-Skizzen + Mini-Quests.
+          <br /><span class="font-semibold text-gray-800">300 DPI • Bleed • Print-Safe</span> – ohne Anmeldung.
+        </p>
+
+        <!-- CTA -->
+        <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <a data-app-link target="_blank" rel="noopener"
+             class="btn-primary w-full sm:w-auto text-white text-xl font-extrabold py-4 px-10 rounded-2xl shadow-xl hover:shadow-2xl transition-transform duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-3">
+            🚀 Jetzt Buch erstellen
+          </a>
+
+          <a href="#how" class="w-full sm:w-auto text-gray-700 font-semibold px-8 py-4 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 transition">
+            Wie funktioniert’s?
+          </a>
+        </div>
+
+        <p class="mt-4 text-sm text-gray-500">
+          Kostenlos testen • Keine Anmeldung • Du bekommst direkt deine PDFs
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <!-- HOW -->
+  <section id="how" class="bg-white border-t border-gray-100">
+    <div class="max-w-6xl mx-auto px-6 py-20">
+      <h2 class="text-3xl md:text-4xl font-extrabold text-center">
+        In 3 Schritten zum fertigen Buch
+      </h2>
+
+      <div class="mt-12 grid md:grid-cols-3 gap-10">
+        <div class="bg-gray-50 border border-gray-100 rounded-2xl p-7 text-left">
+          <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-2xl font-extrabold">1</div>
+          <h3 class="mt-5 text-xl font-bold">Fotos hochladen</h3>
+          <p class="mt-2 text-gray-600">
+            Kind, Haustier, Lieblingsorte – du wählst. Die Engine macht daraus Skizzen fürs Ausmalen.
+          </p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-100 rounded-2xl p-7 text-left">
+          <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-2xl font-extrabold">2</div>
+          <h3 class="mt-5 text-xl font-bold">Skizzen + Missionen</h3>
+          <p class="mt-2 text-gray-600">
+            Klare Kantenzeichnungen + kleine Quests (Bewegung & Denken). Eddie ist der Guide.
+          </p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-100 rounded-2xl p-7 text-left">
+          <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-2xl font-extrabold">3</div>
+          <h3 class="mt-5 text-xl font-bold">PDF download</h3>
+          <p class="mt-2 text-gray-600">
+            Druckfertig für Amazon KDP: 300 DPI, korrekte Ränder, Bleed-Option, Cover optional.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-12 text-center">
+        <a data-app-link target="_blank" rel="noopener"
+           class="inline-flex btn-primary text-white text-lg font-extrabold py-4 px-10 rounded-2xl shadow-lg hover:shadow-xl transition-transform duration-200 hover:-translate-y-0.5">
+          Jetzt starten →
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPECS -->
+  <section class="bg-gray-50">
+    <div class="max-w-5xl mx-auto px-6 py-16 text-center">
+      <h2 class="text-3xl font-extrabold">Optimiert für Amazon KDP</h2>
+
+      <div class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-semibold text-gray-600">
+        <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">300 DPI High-Res</div>
+        <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">8.5" × 8.5" Trim</div>
+        <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">Bleed optional</div>
+        <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">Print-Safe Ränder</div>
+      </div>
+
+      <p class="mt-8 text-sm text-gray-500 max-w-3xl mx-auto">
+        Hinweis: Dies ist ein Generator-Tool. Keine Rechts-/Druckberatung. Prüfe deine finalen PDFs immer einmal im KDP-Previewer.
+      </p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t border-gray-200">
+    <div class="max-w-6xl mx-auto px-6 py-10 text-center text-sm text-gray-500">
+      <p>© 2026 Eddies World • Built with Streamlit & Python</p>
+      <p class="mt-2">
+        <a data-app-link class="text-purple-700 font-semibold hover:underline" target="_blank" rel="noopener">Zur App</a>
+      </p>
+      <noscript>
+        <p class="mt-3 text-red-600">JavaScript ist deaktiviert. Öffne die App direkt: https://eddiesworld.streamlit.app</p>
+      </noscript>
+    </div>
+  </footer>
 </body>
 </html>
