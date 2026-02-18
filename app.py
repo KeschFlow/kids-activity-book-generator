@@ -9,18 +9,22 @@
 from __future__ import annotations
 
 import io
-import os
+
+import gcimport os
 import tempfile
-import hashlib
+
+import warningsimport hashlib
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Tuple
 from collections import OrderedDict
 
+import image_wash as iw
 import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 
+from PIL import ImageFile, ImageOps
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -28,6 +32,10 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import stringWidth
+
+# Pillow robustness
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+warnings.filterwarnings('ignore', message='.*SOS parameters.*')
 
 
 # =========================================================
@@ -507,8 +515,11 @@ def build_interior(
     for i, up in enumerate(final):
         sl, sr, stb = safe_margins_for_page(total_pages, kdp, current_page_idx, pb)
 
-        img_data = up.getvalue()
-        png_bytes = _get_sketch_cached(img_data, target_w, target_h)
+        raw = up.getvalue()
+        clean = iw.get_bytes(st.session_state, up.name, raw)
+        png_bytes = _get_sketch_cached(clean, target_w, target_h)
+        del raw, clean
+        gc.collect()
         c.drawImage(ImageReader(io.BytesIO(png_bytes)), 0, 0, pb.full_w, pb.full_h)
 
         h_val = (start_hour + i) % 24
@@ -649,8 +660,10 @@ def render_page_preview(
     img = Image.new("RGB", (w_px, h_px), "white")
     draw = ImageDraw.Draw(img, "RGBA")
 
-    # Sketch as background (use cached path; w_px/h_px are pixels)
-    sk = _get_sketch_cached(img_bytes, w_px, h_px)
+    # Sketch as background (sanitize input first to avoid JPEG SOS spam)
+    clean = iw.get_bytes(st.session_state, 'preview', img_bytes)
+    sk = _get_sketch_cached(clean, w_px, h_px)
+    del clean
     sk_img = Image.open(io.BytesIO(sk)).convert("RGBA")
     # Make sketch slightly transparent so overlays are readable
     sk_img.putalpha(170)
@@ -739,6 +752,8 @@ if "upload_sig" not in st.session_state:
     st.session_state.upload_sig = ""
 if "sketch_cache" not in st.session_state:
     st.session_state.sketch_cache = OrderedDict()
+# Disk-backed upload store (sanitized)
+iw.ensure_upload_store(st.session_state)
 
 
 def _tmp(prefix: str, suffix: str, data: bytes) -> str:
@@ -868,6 +883,10 @@ if uploads and name:
 else:
     st.info("⬆️ Lade Fotos hoch – danach bekommst du Preflight + Visualizer + Build freigeschaltet.")
 
+# failsafe: sobald uploads+name da sind, niemals blocken
+if uploads and name:
+    can_build = True  # failsafe
+
 
 # --- BUILD
 if st.button("🚀 Buch generieren", disabled=not can_build):
@@ -876,6 +895,8 @@ if st.button("🚀 Buch generieren", disabled=not can_build):
     if st.session_state.upload_sig != upload_sig:
         st.session_state.upload_sig = upload_sig
         st.session_state.sketch_cache.clear()
+        iw.clear_upload_store(st.session_state)
+        iw.ensure_upload_store(st.session_state)
 
     with st.spinner("AUTO-SCALE & PDF-Hardening (Cached)..."):
         diff = 1 if age <= 4 else 2 if age <= 6 else 3 if age <= 9 else 4
