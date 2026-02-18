@@ -35,7 +35,7 @@ def draw_writing_area(
     c: canvas.Canvas,
     x, y, w, h,
     *,
-    line_spacing=12,       # Punkte
+    line_spacing=12,
     left_padding=8,
     top_padding=10,
     lines=True,
@@ -54,7 +54,7 @@ def draw_writing_area(
 
     if lines:
         c.setLineWidth(0.6)
-        c.setStrokeColor(colors.Color(0, 0, 0, alpha=0.25))  # leicht
+        c.setStrokeColor(colors.Color(0, 0, 0, alpha=0.25))
         y_top = y + h - top_padding
         cur = y_top
         y_min = y + 10
