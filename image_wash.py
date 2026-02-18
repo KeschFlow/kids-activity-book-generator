@@ -5,95 +5,65 @@ import os
 import tempfile
 import hashlib
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 from PIL import Image, ImageOps, ImageFile
 
-# Robust load (handles some broken JPEGs gracefully)
+# Robust gegen kaputte/abgeschnittene JPEGs
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+@dataclass(frozen=True)
+class WashedImage:
+    bytes: bytes
+    ext: str
+    sha256: str
+    size: Tuple[int, int]
 
-@dataclass
-class StoredUpload:
-    key: str
-    orig_name: str
-    path: str
-    w: int
-    h: int
-    fmt: str
+def _sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
 
-
-def file_key(name: str, data: bytes) -> str:
-    # Stable key per file content (sha256 full bytes once)
-    h = hashlib.sha256()
-    h.update(name.encode("utf-8", errors="ignore"))
-    h.update(len(data).to_bytes(8, "little", signed=False))
-    h.update(hashlib.sha256(data).digest())
-    return h.hexdigest()
-
-
-def sanitize_to_png_bytes(raw: bytes) -> Tuple[bytes, int, int, str]:
+def wash_image_bytes(
+    raw: bytes,
+    prefer_jpeg: bool = True,
+    jpeg_quality: int = 92,
+) -> WashedImage:
     """
-    "Washes" any incoming image:
-    - EXIF transpose
-    - drop metadata
-    - convert to RGB
-    - re-encode as optimized PNG (kills JPEG SOS warnings permanently downstream)
+    Normalisiert Bildbytes:
+    - Fix EXIF orientation
+    - Strip metadata
+    - Re-encode (JPEG/PNG)
+    Ergebnis ist "sauber" -> keine SOS-Logs.
     """
+    if not raw:
+        raise ValueError("empty image")
+
     with Image.open(io.BytesIO(raw)) as im:
         im = ImageOps.exif_transpose(im)
-        fmt = (im.format or "").upper()
-        if im.mode not in ("RGB", "L"):
-            im = im.convert("RGB")
-        elif im.mode == "L":
-            # keep L for size, but still safe
-            pass
 
-        w, h = im.size
+        # Alpha? -> PNG, sonst JPEG
+        has_alpha = ("A" in im.getbands()) or (im.mode in ("RGBA", "LA"))
+        if has_alpha or not prefer_jpeg:
+            out = io.BytesIO()
+            im = im.convert("RGBA") if has_alpha else im.convert("RGB")
+            im.save(out, format="PNG", optimize=True)
+            b = out.getvalue()
+            return WashedImage(bytes=b, ext="png", sha256=_sha(b), size=im.size)
+
         out = io.BytesIO()
-        im.save(out, format="PNG", optimize=True)
-        return out.getvalue(), w, h, fmt
+        im = im.convert("RGB")
+        # progressive=False verhindert manche kaputte Marker-Setups
+        im.save(out, format="JPEG", quality=jpeg_quality, optimize=True, progressive=False)
+        b = out.getvalue()
+        return WashedImage(bytes=b, ext="jpg", sha256=_sha(b), size=im.size)
 
-
-def ensure_upload_store(session_state: dict):
-    session_state.setdefault("upload_store", {})  # key -> StoredUpload
-    session_state.setdefault("upload_tmpfiles", [])  # paths to cleanup
-
-
-def clear_upload_store(session_state: dict):
-    store: Dict[str, StoredUpload] = session_state.get("upload_store", {})
-    tmpfiles = session_state.get("upload_tmpfiles", [])
-    for p in tmpfiles:
-        try:
-            if isinstance(p, str) and os.path.exists(p):
-                os.remove(p)
-        except Exception:
-            pass
-    store.clear()
-    tmpfiles.clear()
-
-
-def put_sanitized(session_state: dict, up_name: str, raw_bytes: bytes) -> StoredUpload:
-    ensure_upload_store(session_state)
-    key = file_key(up_name, raw_bytes)
-    store: Dict[str, StoredUpload] = session_state["upload_store"]
-    if key in store:
-        return store[key]
-
-    png_bytes, w, h, fmt = sanitize_to_png_bytes(raw_bytes)
-
-    tf = tempfile.NamedTemporaryFile(prefix="upl_", suffix=".png", delete=False)
-    tf.write(png_bytes)
-    tf.flush()
-    tf.close()
-
-    su = StoredUpload(key=key, orig_name=up_name, path=tf.name, w=w, h=h, fmt=fmt)
-    store[key] = su
-    session_state["upload_tmpfiles"].append(tf.name)
-    return su
-
-
-def get_bytes(session_state: dict, up_name: str, raw_bytes: bytes) -> bytes:
-    su = put_sanitized(session_state, up_name, raw_bytes)
-    with open(su.path, "rb") as f:
-        return f.read()
+def wash_to_tempfile(raw: bytes) -> str:
+    """
+    Spült Upload direkt auf Disk (OOM-Schutz).
+    Gibt Pfad zurück.
+    """
+    w = wash_image_bytes(raw)
+    fd, path = tempfile.mkstemp(prefix="eddie_wash_", suffix=f".{w.ext}")
+    os.close(fd)
+    with open(path, "wb") as f:
+        f.write(w.bytes)
+    return path
