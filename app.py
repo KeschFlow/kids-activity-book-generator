@@ -1,22 +1,21 @@
+cat > app.py <<'PY'
 # =========================================================
-# app.py (Eddies Questbook Edition) — ENTERPRISE (v5.0)
+# app.py (Eddies Questbook Edition) — ENTERPRISE (v5.1)
 # =========================================================
 from __future__ import annotations
 
 import io
 import os
-import time
-import tempfile
 import hashlib
 import functools
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from collections import OrderedDict
 
 import streamlit as st
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
@@ -68,8 +67,7 @@ PAPER_FACTORS = {
 SPINE_TEXT_MIN_PAGES = 79
 KDP_MIN_PAGES = 24
 
-# Change this string when you want a visible build marker:
-BUILD_TAG = "v5.0-enterprise"
+BUILD_TAG = "v5.1-enterprise"
 
 
 # =========================================================
@@ -107,24 +105,7 @@ def _kdp_inside_gutter_in(pages: int) -> float:
     return 0.875  # 701-828
 
 
-def _gutter_bucket(pages: int) -> str:
-    if pages <= 150:
-        return "≤150"
-    if pages <= 300:
-        return "151–300"
-    if pages <= 500:
-        return "301–500"
-    if pages <= 700:
-        return "501–700"
-    return "701–828"
-
-
 def safe_margins_for_page(pages: int, kdp: bool, page_index_0: int, pb: PageBox) -> tuple[float, float, float]:
-    """
-    returns (safe_left, safe_right, safe_tb) in points
-    - safe_tb applies to both top and bottom
-    - safe_left/right are mirrored for facing pages when kdp=True
-    """
     if not kdp:
         s = SAFE_INTERIOR
         return s, s, s
@@ -133,8 +114,7 @@ def safe_margins_for_page(pages: int, kdp: bool, page_index_0: int, pb: PageBox)
     safe_tb = pb.bleed + (0.375 * inch)
     gutter = pb.bleed + (_kdp_inside_gutter_in(pages) * inch)
 
-    is_odd = ((page_index_0 + 1) % 2 == 1)  # odd page number
-
+    is_odd = ((page_index_0 + 1) % 2 == 1)
     safe_left = gutter if is_odd else outside
     safe_right = outside if is_odd else gutter
     return safe_left, safe_right, safe_tb
@@ -263,34 +243,16 @@ def _stable_seed(s: str) -> int:
 
 
 # =========================================================
-# 4) SKETCH ENGINE (HASH CACHED 1-BIT + RAM Safety)
+# 4) SKETCH ENGINE (CRASHPROOF CACHE)
+#   - no external store; cache keyed by (sha256 + target_w/h)
 # =========================================================
-_IMG_STORE_MAX = 256
-_IMG_STORE: "OrderedDict[str, bytes]" = OrderedDict()
+@functools.lru_cache(maxsize=192)
+def _sketch_cached(img_hash: str, target_w: int, target_h: int, thresh: int = 200) -> bytes:
+    # NOTE: bytes are re-hydrated from session store (see _get_sketch)
+    raise RuntimeError("internal sentinel")  # replaced at runtime
 
 
-def _img_store_put(img_hash: str, img_bytes: bytes) -> None:
-    if img_hash in _IMG_STORE:
-        _IMG_STORE.move_to_end(img_hash)
-        return
-    _IMG_STORE[img_hash] = img_bytes
-    _IMG_STORE.move_to_end(img_hash)
-    while len(_IMG_STORE) > _IMG_STORE_MAX:
-        _IMG_STORE.popitem(last=False)
-
-
-def _img_store_get(img_hash: str) -> bytes:
-    b = _IMG_STORE.get(img_hash)
-    if b is None:
-        raise KeyError("img_hash not in store")
-    _IMG_STORE.move_to_end(img_hash)
-    return b
-
-
-@functools.lru_cache(maxsize=256)
-def _sketch_cached_by_hash(img_hash: str, target_w: int, target_h: int) -> bytes:
-    img_bytes = _img_store_get(img_hash)
-
+def _sketch_compute(img_bytes: bytes, target_w: int, target_h: int, thresh: int = 200) -> bytes:
     arr = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
     if arr is None:
         raise RuntimeError("Bild fehlerhaft")
@@ -308,18 +270,36 @@ def _sketch_cached_by_hash(img_hash: str, target_w: int, target_h: int) -> bytes
     pil = pil.crop(((sw - s) // 2, (sh - s) // 2, (sw + s) // 2, (sh + s) // 2))
     pil = pil.resize((target_w, target_h), Image.LANCZOS)
 
-    # 1-bit look (KDP-friendly)
-    pil_1bit = pil.point(lambda p: 255 if p > 200 else 0).convert("1")
+    pil_1bit = pil.point(lambda p: 255 if p > int(thresh) else 0).convert("1")
 
     out = io.BytesIO()
     pil_1bit.save(out, format="PNG", optimize=True)
     return out.getvalue()
 
 
-def _get_sketch(img_bytes: bytes, target_w: int, target_h: int) -> bytes:
+def _get_sketch(img_bytes: bytes, target_w: int, target_h: int, thresh: int = 200) -> bytes:
+    # crashproof: cache stores computed bytes; no external store that can evict early
     h = hashlib.sha256(img_bytes).hexdigest()
-    _img_store_put(h, img_bytes)
-    return _sketch_cached_by_hash(h, target_w, target_h)
+    key = (h, int(target_w), int(target_h), int(thresh))
+
+    # manual LRU with session to avoid re-decoding identical images across reruns
+    cache = st.session_state.get("_sketch_png_cache")
+    if cache is None:
+        cache = OrderedDict()
+        st.session_state["_sketch_png_cache"] = cache
+
+    if key in cache:
+        cache.move_to_end(key)
+        return cache[key]
+
+    png = _sketch_compute(img_bytes, target_w, target_h, thresh)
+
+    cache[key] = png
+    cache.move_to_end(key)
+    while len(cache) > 192:
+        cache.popitem(last=False)
+
+    return png
 
 
 def _draw_kdp_debug_guides(c: canvas.Canvas, pb: PageBox, safe_l: float, safe_r: float, safe_tb: float):
@@ -495,7 +475,6 @@ def build_interior(
 
     seed_base = _stable_seed(name)
 
-    # Intro
     if intro:
         sl, sr, stb = safe_margins_for_page(pages, bool(kdp), 0, pb)
         c.setFillColor(colors.white)
@@ -518,14 +497,13 @@ def build_interior(
 
         c.showPage()
 
-    # Pages
     for i, up in enumerate(final):
-        page_idx_0 = i + (1 if intro else 0)  # in-book index for margin mirroring
+        page_idx_0 = i + (1 if intro else 0)
 
         sl, sr, stb = safe_margins_for_page(pages, bool(kdp), page_idx_0, pb)
 
         data = up.getvalue()
-        sk_png = _get_sketch(data, target_w, target_h)
+        sk_png = _get_sketch(data, target_w, target_h, thresh=200)
         ib = io.BytesIO(sk_png)
         c.drawImage(ImageReader(ib), 0, 0, pb.full_w, pb.full_h)
 
@@ -536,7 +514,6 @@ def build_interior(
         _draw_quest_overlay(c, pb, sl, sr, stb, h_val, mission, debug=bool(debug_guides))
 
         if eddie_guide:
-            # bottom-right inside safe zone
             r = 0.18 * inch
             cx = (pb.full_w - sr) - r
             cy = stb + r
@@ -544,7 +521,6 @@ def build_interior(
 
         c.showPage()
 
-    # Outro
     if outro:
         sl, sr, stb = safe_margins_for_page(pages, bool(kdp), pages - 1, pb)
         c.setFillColor(colors.white)
@@ -578,7 +554,6 @@ def build_cover(name: str, pages: int, paper: str) -> bytes:
     c.setFillColor(colors.white)
     c.rect(0, 0, cw, ch, fill=1, stroke=0)
 
-    # spine
     c.setFillColor(INK_BLACK)
     c.rect(BLEED + TRIM, BLEED, sw, TRIM, fill=1, stroke=0)
 
@@ -660,12 +635,6 @@ if "preview_idx" not in st.session_state:
     st.session_state.preview_idx = 0
 
 
-def _tmp(prefix: str, suffix: str, data: bytes) -> str:
-    with tempfile.NamedTemporaryFile(prefix=prefix, suffix=suffix, delete=False) as tf:
-        tf.write(data)
-        return tf.name
-
-
 with st.container(border=True):
     col1, col2 = st.columns(2)
     with col1:
@@ -684,7 +653,8 @@ with st.container(border=True):
     eddie_guide = st.toggle("🐶 Eddie als Guide auf jeder Seite", True)
     uploads = st.file_uploader("Fotos", accept_multiple_files=True, type=["jpg", "png", "jpeg"])
 
-# ---- Own image counter + preview (THIS is what you want) ----
+
+# ---- Preview ----
 if uploads:
     n = len(uploads)
     st.session_state.preview_idx = max(0, min(st.session_state.preview_idx, n - 1))
@@ -708,19 +678,23 @@ if uploads:
     except Exception as e:
         st.warning(f"Preview konnte nicht geladen werden: {e}")
 
-# ---- Res check gate ----
+
+# ---- Res check gate (correct for final render) ----
 can_build = False
 override_res = False
 
 if uploads and name:
     pb = page_box(TRIM, TRIM, kdp_bleed=bool(kdp))
-    target_px = int(round(min(pb.full_w, pb.full_h) * DPI / 72.0))
+    target_w = int(round(pb.full_w * DPI / 72.0))
+    target_h = int(round(pb.full_h * DPI / 72.0))
+    target_px = int(min(target_w, target_h))  # square crop requires min side at least this
 
     small_files = []
     for up in uploads:
         try:
             with Image.open(io.BytesIO(up.getvalue())) as img:
                 w, h = img.size
+                # IMPORTANT: crop-to-square => require min(w,h) >= target_px
                 if min(w, h) < target_px:
                     small_files.append((up.name, w, h))
         except Exception:
@@ -728,8 +702,8 @@ if uploads and name:
 
     if small_files:
         st.warning(
-            f"⚠️ {len(small_files)} Foto(s) sind kleiner als die empfohlene Zielauflösung ({target_px}px). "
-            "Das kann zu unscharfem Druck führen."
+            f"⚠️ {len(small_files)} Foto(s) sind kleiner als die empfohlene Zielauflösung "
+            f"({target_px}px minimale Kante bei Square-Crop). Das kann zu unscharfem Druck führen."
         )
         with st.expander("Details ansehen"):
             for sf, fw, fh in small_files:
@@ -740,7 +714,8 @@ if uploads and name:
         st.success(f"✅ Alle {len(uploads)} Fotos erfüllen die 300-DPI-Anforderung (≥ {target_px}px).")
         can_build = True
 
-# ---- Generate ----
+
+# ---- Generate (in-memory assets) ----
 if st.button("🚀 Buch generieren", disabled=not can_build):
     with st.spinner("Rendering PDFs..."):
         diff = 1 if age <= 4 else 2 if age <= 6 else 3 if age <= 9 else 4
@@ -759,37 +734,27 @@ if st.button("🚀 Buch generieren", disabled=not can_build):
         )
 
         cov_pdf = build_cover(name=name, pages=int(pages), paper=paper)
-        listing_txt = build_listing_text(name)
-
-        # cleanup previous
-        if st.session_state.assets:
-            for f in st.session_state.assets.values():
-                if isinstance(f, str) and os.path.exists(f):
-                    try:
-                        os.remove(f)
-                    except Exception:
-                        pass
+        listing_txt = build_listing_text(name).encode("utf-8")
 
         st.session_state.assets = {
-            "int": _tmp("int_", ".pdf", int_pdf),
-            "cov": _tmp("cov_", ".pdf", cov_pdf),
-            "listing": _tmp("list_", ".txt", listing_txt.encode("utf-8")),
+            "int_pdf": int_pdf,
+            "cov_pdf": cov_pdf,
+            "listing_txt": listing_txt,
             "name": name,
         }
         st.success("✅ Assets bereit!")
 
-# ---- Downloads ----
+
+# ---- Downloads (no tempfiles) ----
 if st.session_state.assets:
     a = st.session_state.assets
     c1, c2, c3 = st.columns(3)
     with c1:
-        with open(a["int"], "rb") as f:
-            st.download_button("📘 Interior", f, file_name=f"Int_{a['name']}.pdf")
+        st.download_button("📘 Interior", a["int_pdf"], file_name=f"Int_{a['name']}.pdf", mime="application/pdf")
     with c2:
-        with open(a["cov"], "rb") as f:
-            st.download_button("🎨 Cover", f, file_name=f"Cov_{a['name']}.pdf")
+        st.download_button("🎨 Cover", a["cov_pdf"], file_name=f"Cov_{a['name']}.pdf", mime="application/pdf")
     with c3:
-        with open(a["listing"], "rb") as f:
-            st.download_button("📝 Listing", f, file_name=f"Listing_{a['name']}.txt")
+        st.download_button("📝 Listing", a["listing_txt"], file_name=f"Listing_{a['name']}.txt", mime="text/plain")
 
 st.markdown("<div style='text-align:center; color:grey;'>Eddies Welt © 2026</div>", unsafe_allow_html=True)
+PY
