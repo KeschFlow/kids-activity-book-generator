@@ -1,55 +1,68 @@
 # =========================================================
-# image_wash.py (Eddies 2026 — UPLOAD SANITIZER)
-# - Fixes EXIF orientation issues
-# - Converts weird modes to RGB
-# - Re-encodes safely (JPEG or PNG)
-# - Prevents broken/corrupt image bytes from crashing OpenCV/Pillow
+# image_wash.py — Eddies Upload Sanitizer (FINAL + bytes API)
 # =========================================================
-from __future__ import annotations
 
+from __future__ import annotations
 import io
 from PIL import Image, ImageOps
 
-MAX_SIDE = 10000  # safety; avoids absurdly huge images killing memory
+MAX_SIDE = 10000
 
 
-def wash_image_bytes(b: bytes) -> bytes:
+def wash_image(file) -> Image.Image:
     """
-    Returns sanitized bytes (JPEG) by default.
-    - Load via Pillow
-    - Apply EXIF transpose
-    - Convert to RGB (strip alpha by compositing onto white)
-    - Clamp size
-    - Re-encode cleanly
+    Accepts Streamlit upload OR file-like object OR bytes.
+    Returns clean RGB PIL image.
     """
+    if hasattr(file, "read"):
+        b = file.read()
+    else:
+        b = file
+
     if not b:
-        raise ValueError("empty image bytes")
+        raise ValueError("empty image")
 
     bio = io.BytesIO(b)
+
     with Image.open(bio) as im:
         im.load()
 
-        # fix EXIF rotation
+        # EXIF orientation fix
         im = ImageOps.exif_transpose(im)
 
-        # clamp size (safety)
+        # Clamp size
         w, h = im.size
         m = max(w, h)
         if m > MAX_SIDE:
-            scale = MAX_SIDE / float(m)
-            im = im.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            s = MAX_SIDE / float(m)
+            im = im.resize((int(w * s), int(h * s)), Image.LANCZOS)
 
-        # normalize mode
+        # Normalize mode
         if im.mode in ("RGBA", "LA"):
-            # composite on white
             bg = Image.new("RGB", im.size, (255, 255, 255))
             bg.paste(im, mask=im.split()[-1])
             im = bg
         elif im.mode != "RGB":
             im = im.convert("RGB")
 
-        out = io.BytesIO()
-        # always output JPEG for predictable OpenCV decode
-        im.save(out, format="JPEG", quality=95, optimize=True, progressive=True)
-        out.seek(0)
-        return out.getvalue()
+        return im
+
+
+def wash_image_bytes(raw: bytes, *, out_format: str = "PNG", jpeg_quality: int = 92) -> bytes:
+    """
+    Accepts raw image bytes.
+    Returns sanitized image bytes (default PNG).
+    This is the function your app is currently expecting.
+    """
+    im = wash_image(raw)  # returns clean RGB PIL image
+
+    out = io.BytesIO()
+    fmt = (out_format or "PNG").upper()
+
+    if fmt in ("JPG", "JPEG"):
+        im.save(out, format="JPEG", quality=int(jpeg_quality), optimize=True)
+    else:
+        # PNG is safe default (lossless, widely supported)
+        im.save(out, format="PNG", optimize=True)
+
+    return out.getvalue()

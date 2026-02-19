@@ -1,45 +1,220 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="de">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Eddies Questbuch – Start</title>
-  <meta name="description" content="Fotos hochladen, PDF erstellen, zuhause ausdrucken: Eddies Questbuch." />
+  <title>Eddies Questbuch – Aus deinen Fotos wird ein Abenteuer</title>
+  <meta name="description" content="Personalisiertes Kinder-Questbuch: Aus deinen Fotos werden Ausmalbilder + 24 Mini-Missionen. PDF erstellen & zuhause drucken." />
+
   <style>
-    :root { --bg:#0b0f17; --card:#121a27; --text:#eef2ff; --muted:#b8c0d9; --accent:#7dd3fc; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background: radial-gradient(1200px 700px at 20% 0%, #152040, var(--bg)); color:var(--text); }
-    .wrap { max-width: 860px; margin: 0 auto; padding: 28px 18px 60px; }
-    .card { background: rgba(18,26,39,.9); border:1px solid rgba(255,255,255,.08); border-radius: 22px; padding: 22px; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
-    h1 { font-size: 30px; margin: 0 0 6px; }
-    .sub { color: var(--muted); margin: 0 0 18px; }
-    .grid { display:grid; gap: 14px; grid-template-columns: 1fr; margin-top: 14px; }
-    @media (min-width: 760px){ .grid{ grid-template-columns: 1.2fr .8fr; } }
-    .step { background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 14px; }
-    .step b { color: var(--accent); }
-    .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 14px; }
-    a.btn { display:inline-block; padding: 12px 14px; border-radius: 14px; text-decoration:none; font-weight:700; }
-    a.primary { background: var(--accent); color:#001018; }
-    a.ghost { border:1px solid rgba(255,255,255,.18); color: var(--text); }
-    .small { font-size: 13px; color: var(--muted); margin-top: 14px; line-height: 1.4; }
+    :root{
+      --bg:#05050a;
+      --card:#0b0b14;
+      --text:#ffffff;
+      --muted:#bdbdd6;
+      --accent:#7c3aed; /* Eddie Purpur */
+      --accent2:#22c55e;
+      --line:rgba(255,255,255,.10);
+      --shadow: 0 18px 50px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color:var(--text);
+      background:
+        radial-gradient(900px 600px at 15% 0%, rgba(124,58,237,.35), transparent 60%),
+        radial-gradient(800px 500px at 90% 10%, rgba(34,197,94,.18), transparent 55%),
+        radial-gradient(1200px 700px at 30% 100%, rgba(124,58,237,.12), transparent 60%),
+        var(--bg);
+    }
+    a{color:inherit}
+    .wrap{max-width:1100px;margin:0 auto;padding:26px 18px 70px}
+    .nav{
+      display:flex;align-items:center;justify-content:space-between;
+      gap:14px;margin-bottom:18px
+    }
+    .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:.2px}
+    .mark{
+      width:34px;height:34px;border-radius:12px;background:var(--accent);
+      box-shadow:0 10px 25px rgba(124,58,237,.35);
+      position:relative;
+    }
+    /* Tongue mark */
+    .mark:after{
+      content:""; position:absolute; left:50%; top:50%;
+      width:12px; height:16px; transform:translate(-50%,-40%);
+      border-radius:6px; background:#a78bfa;
+      box-shadow: inset 0 0 0 2px rgba(0,0,0,.35);
+    }
+    .pill{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:8px 12px;border:1px solid var(--line);
+      border-radius:999px;background:rgba(255,255,255,.04);
+      color:var(--muted); font-size:13px
+    }
+    .hero{
+      display:grid; gap:18px;
+      grid-template-columns: 1fr;
+      margin-top:14px;
+    }
+    @media (min-width: 900px){
+      .hero{grid-template-columns: 1.1fr .9fr; align-items:stretch;}
+    }
+    .card{
+      background: rgba(255,255,255,.04);
+      border:1px solid var(--line);
+      border-radius:26px;
+      box-shadow: var(--shadow);
+      padding:22px;
+    }
+    h1{margin:0 0 10px;font-size:36px;line-height:1.07;letter-spacing:-.6px}
+    @media (min-width:900px){ h1{font-size:46px;} }
+    .sub{margin:0 0 16px;color:var(--muted);font-size:16px;line-height:1.5}
+    .ctaRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:10px;
+      padding:12px 14px;border-radius:16px;text-decoration:none;font-weight:900;
+      border:1px solid transparent;
+    }
+    .btn.primary{background:var(--accent);color:#07050f}
+    .btn.ghost{background:transparent;border-color:rgba(255,255,255,.18)}
+    .btn.small{padding:10px 12px;border-radius:14px;font-weight:800}
+    .grid3{display:grid;gap:12px;margin-top:16px}
+    @media (min-width:900px){ .grid3{grid-template-columns:repeat(3,1fr);} }
+    .tile{
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:14px;
+      background:rgba(0,0,0,.18)
+    }
+    .tile b{color:#fff}
+    .tile p{margin:8px 0 0;color:var(--muted);font-size:14px;line-height:1.45}
+    .proof{
+      border:1px dashed rgba(255,255,255,.18);
+      border-radius:22px;
+      padding:18px;
+      background: rgba(255,255,255,.03);
+    }
+    .proofTop{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
+    .badge{
+      display:inline-flex;gap:8px;align-items:center;
+      padding:8px 12px;border-radius:999px;
+      background:rgba(124,58,237,.18);
+      border:1px solid rgba(124,58,237,.35);
+      color:#e9ddff;font-size:13px;font-weight:800;
+    }
+    .mock{
+      aspect-ratio: 4/3;
+      border-radius:18px;
+      border:1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(124,58,237,.25), rgba(34,197,94,.08)),
+        rgba(0,0,0,.25);
+      display:flex;align-items:center;justify-content:center;
+      color:rgba(255,255,255,.75);
+      font-weight:800;
+      text-align:center;
+      padding:18px;
+    }
+    .section{margin-top:18px}
+    h2{margin:0 0 10px;font-size:22px;letter-spacing:-.2px}
+    .faq details{
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:12px 14px;
+      background:rgba(255,255,255,.03);
+      margin-top:10px;
+    }
+    .faq summary{cursor:pointer;font-weight:800}
+    .faq p{margin:10px 0 0;color:var(--muted);line-height:1.5}
+    .footer{margin-top:22px;color:rgba(255,255,255,.35);font-size:12px}
   </style>
 </head>
+
 <body>
   <div class="wrap">
-    <h1>Eddies Questbuch – so funktioniert’s</h1>
-    <p class="sub">Fotos rein → PDF raus → zuhause ausdrucken.</p>
+    <div class="nav">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div>Eddies Questbuch</div>
+      </div>
+      <div class="pill">📸 Foto → ✍️ Ausmalbild → 🎯 Mission</div>
+    </div>
 
-    <div class="grid">
+    <div class="hero">
       <div class="card">
-        <h2>In 3 Schritten</h2>
+        <div class="pill">Für Kinder (4–9) • Bildschirmfrei • Geschenk-tauglich</div>
+        <h1>Aus euren Fotos wird ein Abenteuer, das dein Kind wirklich macht.</h1>
+        <p class="sub">
+          Du lädst Fotos hoch. Wir machen daraus <b>Ausmalbilder</b> + <b>24 Mini-Quests</b> (Bewegung, Denken, Haken).
+          Danach bekommst du ein <b>druckfertiges PDF</b> (KDP-ready optional).
+        </p>
 
-        <div class="step"><b>1) Fotos auswählen</b><br/>10–24 Fotos hochladen.</div>
-        <div class="step"><b>2) Buch erstellen</b><br/>Skizzen + Missionen werden automatisch erzeugt.</div>
-        <div class="step"><b>3) Zuhause drucken</b><br/>PDF öffnen → Drucken → fertig.</div>
-
-        <div class="btns">
-          <a class="btn primary" href="https://eddiesworld.streamlit.app" target="_blank">
-            Zur App (PDF erstellen)
+        <div class="ctaRow">
+          <a class="btn primary" href="https://eddies-print-engine.streamlit.app" target="_blank" rel="noopener">
+            🚀 Jetzt PDF erstellen
           </a>
+          <a class="btn ghost" href="../" >
+            👀 So funktioniert’s (Start)
+          </a>
+          <a class="btn ghost" href="mailto:keschflow@gmail.com?subject=Eddies%20Questbuch%20Support" >
+            ✉️ Support
+          </a>
+        </div>
+
+        <div class="grid3">
+          <div class="tile">
+            <b>100% personalisiert</b>
+            <p>Das Kind erkennt seine Welt wieder. Genau das triggert Motivation.</p>
+          </div>
+          <div class="tile">
+            <b>Kurze Missionen</b>
+            <p>Kein Textroman. 1 Aufgabe. 1 Haken. Weiter.</p>
+          </div>
+          <div class="tile">
+            <b>Print-first</b>
+            <p>Saubere Linien, hoher Kontrast, 300 DPI Render-Target.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card proof">
+        <div class="proofTop">
+          <div class="badge">✅ USP in 2 Sekunden: Foto → Sketch</div>
+          <a class="btn small ghost" href="https://eddies-print-engine.streamlit.app" target="_blank" rel="noopener">App öffnen</a>
+        </div>
+
+        <div class="mock">
+          Hier kommt später ein Screenshot/Mockup rein (Foto → Sketch + Mission).<br/>
+          (Optional: echtes Beispiel als Bild einbauen)
+        </div>
+
+        <div class="section">
+          <h2>In 3 Schritten</h2>
+          <div class="tile"><b>1) Fotos hochladen</b><p>10–24 Bilder reichen perfekt.</p></div>
+          <div class="tile"><b>2) PDF generieren</b><p>Skizzen + Quests werden automatisch gebaut.</p></div>
+          <div class="tile"><b>3) Drucken & los</b><p>Zuhause drucken oder KDP nutzen.</p></div>
+        </div>
+
+        <div class="section faq">
+          <h2>FAQ</h2>
+          <details>
+            <summary>Kann mein Kind das ohne Lesen?</summary>
+            <p>Ja. Der Pre-Reader Mode ist dafür gedacht: kurze Texte + Icons. Du kannst 1 Satz vorlesen, Kind macht’s nach.</p>
+          </details>
+          <details>
+            <summary>Welche Fotos funktionieren am besten?</summary>
+            <p>Klare Motive, gute Helligkeit, ein Hauptobjekt. Handyfotos reichen.</p>
+          </details>
+          <details>
+            <summary>Wie schnell ist das fertig?</summary>
+            <p>Nach Upload + Klick wird direkt das PDF gebaut (je nach Bildanzahl dauert es kurz).</p>
+          </details>
+        </div>
+
+        <div class="footer">
+          Eddies World © 2026 • Hinweis: Dies ist ein Kreativ-/Produktions-Tool, keine Therapie/Diagnose.
         </div>
       </div>
     </div>
