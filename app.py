@@ -498,11 +498,36 @@ def build_interior(name: str, uploads, total_pages: int, kdp: bool, intro: bool,
         h_val = hours[i]
         mission = missions[i]
         zone = zones[i]
-        try:
-            mission.chapter = chapter_idx[i]
-            mission.total_chapters = total_chapters
-        except Exception:
-            pass
+                
+                try:
+                    cum_xp += int(mission.xp)
+                    mission.chapter = chapter_idx[i]
+                    mission.total_chapters = total_chapters
+                except Exception:
+                    pass
+                
+                # --- BOSS-FIGHT / KAPITEL-TRENNSEITE ---
+                if i > 0 and chapter_idx[i] > chapter_idx[i-1]:
+                    c.saveState()
+                    c.setFillColorRGB(0.05, 0.07, 0.1) # Dunkler KDP-safe Hintergrund
+                    c.rect(0, 0, pw, ph, fill=1, stroke=0)
+                    c.setFillColorRGB(1, 1, 1) # Weißer Text
+                    
+                    try:
+                        _set_font(c, True, 26)
+                    except:
+                        c.setFont("Helvetica-Bold", 26)
+                    c.drawCentredString(pw / 2.0, ph / 2.0 + 0.8 * 72.0, f"KAPITEL {mission.chapter}")
+                    
+                    try:
+                        _set_font(c, False, 14)
+                    except:
+                        c.setFont("Helvetica", 14)
+                    c.drawCentredString(pw / 2.0, ph / 2.0 - 0.4 * 72.0, f"Willkommen in: {zone.name}")
+                    
+                    c.restoreState()
+                    c.showPage()
+                    current_page_idx += 1
 
         _draw_quest_overlay(c, pb, sl, sr, stb, h_val, mission, debug=debug_guides)
         c.showPage()
