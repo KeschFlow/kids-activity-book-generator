@@ -121,8 +121,10 @@ _init_db()
 # =========================================================
 # ACCESS & LIMIT LOGIC
 # =========================================================
-STRIPE_SECRET = st.secrets.get("STRIPE_SECRET_KEY", "")
-PAYMENT_LINK = st.secrets.get("STRIPE_PAYMENT_LINK", "https://buy.stripe.com/...")
+try:
+    STRIPE_SECRET = st.secrets["STRIPE_SECRET_KEY"]
+except Exception:
+    STRIPE_SECRET = ""
 
 FREE_LIMIT = 3
 COMMUNITY_TOKENS = {"KITA-2026": 50, "SCHULE-X": 50, "THERAPIE-EDDIE": 100}
