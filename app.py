@@ -1104,7 +1104,7 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
         shapes = _generate_shapes(pb, sl, sr, stb, bool(pre_reader), seed)
         _draw_shapes(c, shapes)
 
-                tri = sum(1 for s in shapes if s.kind == "triangle")
+        tri = sum(1 for s in shapes if s.kind == "triangle")
         sq = sum(1 for s in shapes if s.kind == "square")
         st_ = sum(1 for s in shapes if s.kind == "star")
         t_shapes = len(shapes)
