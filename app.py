@@ -1,7 +1,18 @@
-# ============================
-# app.py — E. P. E. Eddie's Print Engine — v5.12.0 DUAL MODE
-# (PATCHED for Engine 2.0 text wrapping via text_layout.draw_wrapped_text)
-# ============================
+# =========================================================
+# app.py — E. P. E. Eddie's Print Engine — v6.0.0 (CLEAN CORE)
+#
+# v6 PRINCIPLES:
+# - Data-only: quest_data.py (pools + dedupe via qid)
+# - Layout-only: text_layout.py (ReportLab Paragraph wrapping + overflow gate)
+# - Core engine: app.py orchestrates, no string-hacks, no QUEST_BANK
+#
+# MUST-HAVES:
+# - KDP READY: Safe zones, 26 pages fixed
+# - DUAL MODE: kid vs senior
+# - QR CTA OUTRO: vector QR
+# - SECURITY: upload caps, OpenCV 25MP guard, SQLite fair-use rate limit
+# - QUALITY GATE: text overflow -> hard ValueError (crash build)
+# =========================================================
 
 from __future__ import annotations
 
@@ -13,6 +24,7 @@ import math
 import secrets
 import hashlib
 import sqlite3
+import random
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Tuple
 from collections import OrderedDict
@@ -37,13 +49,20 @@ from reportlab.graphics.shapes import Drawing
 from reportlab.graphics import renderPDF
 
 import image_wash as iw
-
-# --- NEW: Paragraph-based wrapping helper ---
-from text_layout import draw_wrapped_text
+from text_layout import draw_wrapped_text  # Paragraph-based wrapping + fit gate
 
 # --- PIL Hardening ---
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = 25_000_000  # ~25MP
+
+# =========================================================
+# QUEST DATA (REQUIRED FOR v6)
+# =========================================================
+try:
+    import quest_data as qd
+except Exception as e:
+    qd = None
+    _QD_IMPORT_ERROR = str(e)
 
 # =========================================================
 # HELPERS
@@ -65,6 +84,9 @@ def _name_genitive(name: str) -> str:
 
 def _de_plural(n: int, singular: str, plural: str) -> str:
     return singular if int(n) == 1 else plural
+
+def _stable_seed(s: str) -> int:
+    return int.from_bytes(hashlib.sha256(s.encode("utf-8")).digest()[:8], "big")
 
 # =========================================================
 # RATE LIMITING (SQLite local - Self Healing)
@@ -161,14 +183,8 @@ builds_left = max(0, user_limit - builds_used)
 can_build_limit = builds_left > 0 or is_supporter
 
 # =========================================================
-# QUEST SYSTEM ZONES (world-building; optional quest_data.py)
+# QUEST ZONES (optional in quest_data; fallback stub)
 # =========================================================
-try:
-    import quest_data as qd
-except Exception as e:
-    qd = None
-    _QD_IMPORT_ERROR = str(e)
-
 @dataclass(frozen=True)
 class ZoneStub:
     name: str
@@ -216,88 +232,6 @@ def _fmt_hour(hour: int) -> str:
     return f"{int(hour):02d}:00"
 
 # =========================================================
-# DYNAMIC QUEST BANK (Fallback; quest_data.py optional)
-# =========================================================
-def _build_full_quest_bank():
-    bank = {}
-    m_titles = ["Start-Kraft", "Rüstung anlegen", "Morgen-Fokus", "Wachmacher", "Sonnen-Sucher", "Frühsport", "Augen auf", "Energie-Tank", "Tag-Blick", "Morgen-Scan"]
-    m_moves = ["Mache 10 Kniebeugen.", "20 Sekunden Hampelmann.", "Streck dich so groß du kannst.", "Laufe 10 Sekunden auf der Stelle.", "Hüpfe 5x hoch in die Luft.", "Berühre 10x deine Zehenspitzen.", "Kreise deine Arme wie Windmühlen.", "Mache 5 Froschsprünge.", "Balanciere 10 Sekunden auf einem Bein.", "Mache 3 große Ausfallschritte."]
-
-    d_titles = ["Musterjäger", "Adlerauge", "Action-Check", "Spürhund", "Fokus-Meister", "Abenteuer-Blick", "Such-Ninja", "Formen-Ritter", "Tempo-Scan", "Durchblick"]
-    d_moves = ["Mache 10 Hampelmänner.", "Hüpfe 10x auf dem rechten Bein.", "Mache 5 Kniebeugen.", "Laufe im Zickzack.", "Dreh dich 5x im Kreis.", "Mache 5 Känguru-Sprünge.", "Balanciere wie ein Flamingo.", "Mache 10 schnelle Schritte auf der Stelle.", "Streck dich und berühre den Boden.", "Mache 3 Sternensprünge."]
-
-    e_titles = ["Nacht-Wache", "Ruhe-Check", "Schatten-Jäger", "Leise Pfoten", "Dämmerungs-Blick", "Abend-Fokus", "Sternen-Scanner", "Fokus-Ninja", "Traum-Pfad", "Nacht-Auge"]
-    e_moves = ["Stell dich auf die Zehenspitzen und zähle bis 10.", "Bewege dich 10 Sekunden in Zeitlupe.", "Atme 3x tief ein und aus.", "Setz dich in den Schneidersitz.", "Massiere sanft deine Ohren.", "Mache dich ganz klein wie ein Igel.", "Streck dich langsam nach oben.", "Kreise sanft deine Schultern.", "Schließe die Augen und zähle bis 5.", "Stell dich aufrecht hin wie ein Baum."]
-
-    n_titles = ["Traum-Fänger", "Stille Wacht", "Nacht-Flug", "Schlaf-Ninja", "Mondlicht-Blick", "Traum-Scan", "Sternen-Staub", "Leise Suche", "Ruhe-Mission", "Nacht-Fokus"]
-    n_moves = ["Atme tief in den Bauch.", "Lege dich 10 Sekunden ganz still hin.", "Bewege deine Finger wie Sterne.", "Schließe die Augen und atme.", "Sei so leise wie eine Maus.", "Strecke deine Arme sanft aus.", "Mache ein leises 'Schh'-Geräusch.", "Gähne einmal herzhaft.", "Lächle mit geschlossenen Augen.", "Entspanne deine Schultern."]
-
-    proofs = ["Kreise alle Formen ein.", "Male die Sterne gelb aus.", "Setze einen Punkt in jede Form.", "Verbinde die Formen mit einer Linie.", "Zähle laut mit und hake ab.", "Male die Quadrate bunt an.", "Setze einen Haken neben die Dreiecke.", "Male kleine Gesichter in die Formen."]
-
-    for h in range(24):
-        hour_str = f"{h:02d}"
-        bank[hour_str] = []
-
-        if 6 <= h <= 11: t_list, m_list = m_titles, m_moves
-        elif 12 <= h <= 17: t_list, m_list = d_titles, d_moves
-        elif 18 <= h <= 21: t_list, m_list = e_titles, e_moves
-        else: t_list, m_list = n_titles, n_moves
-
-        for i in range(10):
-            q_id = f"{hour_str}_{i:02d}"
-            bank[hour_str].append({
-                "id": q_id,
-                "title": t_list[i % len(t_list)],
-                "xp": 10 + i + (h % 5),
-                "movement": m_list[i % len(m_list)],
-                "proof": proofs[(h + i) % len(proofs)]
-            })
-
-    reserve = []
-    for i in range(24):
-        reserve.append({
-            "id": f"res_{i:02d}",
-            "title": "Sonder-Mission",
-            "xp": 20,
-            "movement": "Mache 3x tief Ooommm.",
-            "proof": "Setze einen dicken Haken!"
-        })
-
-    return bank, reserve
-
-QUEST_BANK, QUEST_RESERVE = _build_full_quest_bank()
-
-def build_book_schedule(seed: int, start_hour: int, count: int) -> dict:
-    rng = np.random.default_rng(seed)
-    used_ids = set()
-    schedule = {}
-
-    for i in range(count):
-        hour = (start_hour + i) % 24
-        hour_str = f"{hour:02d}"
-        candidates = [q for q in QUEST_BANK.get(hour_str, []) if q["id"] not in used_ids]
-
-        if not candidates:
-            candidates = [q for q in QUEST_RESERVE if q["id"] not in used_ids]
-        if not candidates:
-            candidates = QUEST_RESERVE
-
-        idx = rng.integers(0, len(candidates))
-        picked = candidates[idx]
-        used_ids.add(picked["id"])
-        schedule[hour] = picked
-
-    return schedule
-
-@dataclass
-class Mission:
-    title: str
-    xp: int
-    movement: str
-    thinking: str
-    proof: str
-
-# =========================================================
 # CONFIG
 # =========================================================
 APP_TITLE = "E. P. E. Eddie's Print Engine"
@@ -326,13 +260,13 @@ SPINE_TEXT_MIN_PAGES = 79
 MAX_SKETCH_CACHE = 256
 MAX_WASH_CACHE = 64
 
-BUILD_TAG = "v5.12.0-dual-mode"
+BUILD_TAG = "v6.0.0-clean-core"
 
 QR_URL = "https://keschflow.github.io/start/"
 QR_TEXT = "keschflow.github.io/start"
 
 # =========================================================
-# CORE & PAGE GEOMETRY
+# PAGE GEOMETRY
 # =========================================================
 def _new_build_nonce() -> str:
     return f"{time.time_ns():x}-{secrets.token_hex(16)}"
@@ -387,7 +321,7 @@ def _draw_kdp_debug_guides(c: canvas.Canvas, pb: PageBox, safe_l: float, safe_r:
     c.restoreState()
 
 # =========================================================
-# FONTS & TEXT TOOLS
+# FONTS
 # =========================================================
 def _try_register_fonts() -> Dict[str, str]:
     n = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
@@ -409,167 +343,82 @@ def _set_font(c: canvas.Canvas, bold: bool, size: int) -> float:
     c.setFont(FONTS["bold"] if bold else FONTS["normal"], size)
     return size * 1.22
 
-def _wrap_text_hard(text: str, font: str, size: int, max_w: float) -> List[str]:
-    text = (text or "").strip()
-    if not text: return [""]
-    lines, cur = [], ""
-    def fits(s: str) -> bool: return stringWidth(s, font, size) <= max_w
-    for w in text.split():
-        trial = (cur + " " + w).strip()
-        if cur and fits(trial): cur = trial
-        elif not cur and fits(w): cur = w
-        else:
-            if cur: lines.append(cur)
-            if not fits(w):
-                chunk = ""
-                for ch in w:
-                    if fits(chunk + ch): chunk += ch
-                    else:
-                        if chunk: lines.append(chunk)
-                        chunk = ch
-                cur = chunk
-            else: cur = w
-    if cur: lines.append(cur)
-    return lines
-
-def _fit_lines(lines: List[str], max_lines: int) -> List[str]:
-    if len(lines) <= max_lines: return lines
-    out = lines[:max_lines]
-    out[-1] = (out[-1].rstrip()[:-3].rstrip() if len(out[-1]) > 3 else out[-1]) + "…"
-    return out
-
 def _kid_short(s: str, max_words: int = 4) -> str:
     s = (s or "").strip().replace("•", " ").replace("→", " ").replace("-", " ")
     return " ".join([w for w in s.split() if w and len(w) > 1][:max_words])
 
-def _autoscale_mission_text(mission, w: float, x0: float, pad_x: float, max_card_h: float, is_senior: bool) -> Dict[str, Any]:
-    b_t, b_b, g_t, g_s = 0.36 * inch, 0.40 * inch, 0.10 * inch, 0.06 * inch
-    mw_m, mw_t = (x0 + w - pad_x) - (x0 + 1.05 * inch), (x0 + w - pad_x) - (x0 + 0.90 * inch)
+# =========================================================
+# v6 QUEST SCHEDULING (quest_data pools + dedupe)
+# =========================================================
+@dataclass(frozen=True)
+class ScheduledQuest:
+    title: str
+    xp: int
+    thinking: str
+    proof: str
+    note: str
 
-    def compute(ts, bs, ls):
-        ml = _wrap_text_hard(getattr(mission, "movement", ""), FONTS["normal"], bs, mw_m)
-        tl = _wrap_text_hard(getattr(mission, "thinking", ""), FONTS["normal"], bs, mw_t)
-        need = b_t + (ts * 1.22) + g_t + (ls * 1.22 * 2) + ((len(ml) + len(tl)) * (bs * 1.28)) + g_s + b_b
-        return {"ts": ts, "bs": bs, "ls": ls, "tl": ts * 1.22, "bl": bs * 1.28, "ll": ls * 1.22, "ml": ml, "tl_lines": tl, "needed": need}
+@dataclass
+class QuestTrackers:
+    used_proof: set
+    used_quest: set
+    used_note: set
 
-    ts, bs, ls = (16, 13, 12) if is_senior else (13, 10, 10)
-    min_ts, min_bs, min_ls = (13, 11, 11) if is_senior else (10, 8, 8)
+def _new_trackers() -> QuestTrackers:
+    return QuestTrackers(used_proof=set(), used_quest=set(), used_note=set())
 
-    sc = compute(ts, bs, ls)
-    while sc["needed"] > max_card_h and (ts > min_ts or bs > min_bs or ls > min_ls):
-        if ts > min_ts: ts -= 1
-        if bs > min_bs: bs -= 1
-        if ls > min_ls: ls -= 1
-        sc = compute(ts, bs, ls)
+def build_book_schedule(seed: int, start_hour: int, count: int) -> Tuple[Dict[int, ScheduledQuest], QuestTrackers]:
+    if not qd or not hasattr(qd, "get_quest"):
+        raise RuntimeError("quest_data.py missing/invalid: get_quest() required for v6.")
 
-    if sc["needed"] > max_card_h:
-        rem = max_card_h - (b_t + sc["tl"] + g_t + (sc["ll"] * 2) + g_s + b_b)
-        mb = max(2, int(rem // sc["bl"]))
-        sc["ml"] = _fit_lines(sc["ml"], max(1, mb // 2))
-        sc["tl_lines"] = _fit_lines(sc["tl_lines"], max(1, mb - max(1, mb // 2)))
-    return sc
+    rng = random.Random(int(seed) & 0xFFFFFFFFFFFFFFFF)
+    tr = _new_trackers()
+    schedule: Dict[int, ScheduledQuest] = {}
 
-def _stable_seed(s: str) -> int:
-    return int.from_bytes(hashlib.sha256(s.encode("utf-8")).digest()[:8], "big")
+    for i in range(int(count)):
+        hour = (int(start_hour) + i) % 24
+        zone = _get_zone_for_hour(hour)
 
-def _fmt_in(x: float) -> str: return f"{x:.4f} in"
-def _fmt_pt(x: float) -> str: return f"{x:.2f} pt"
-def _fmt_xy_in(x_pt: float, y_pt: float) -> str: return f"({_fmt_in(x_pt / inch)}, {_fmt_in(y_pt / inch)})"
-def _fmt_xy_pt(x_pt: float, y_pt: float) -> str: return f"({_fmt_pt(x_pt)}, {_fmt_pt(y_pt)})"
+        q_item = qd.get_quest("quest", tr.used_quest, rng=rng)
+        qid = getattr(q_item, "qid", "")
+        if qid:
+            tr.used_quest.add(qid)
+
+        p_item = qd.get_quest("proof", tr.used_proof, rng=rng)
+        pid = getattr(p_item, "qid", "")
+        if pid:
+            tr.used_proof.add(pid)
+
+        n_text = ""
+        try:
+            n_item = qd.get_quest("note", tr.used_note, rng=rng)
+            nid = getattr(n_item, "qid", "")
+            if nid:
+                tr.used_note.add(nid)
+            n_text = (getattr(n_item, "text", "") or "").strip()
+        except Exception:
+            n_text = ""
+
+        schedule[hour] = ScheduledQuest(
+            title=f"{zone.quest_type}: {zone.name}",
+            xp=10 + (i % 10) + (hour % 5),
+            thinking=(getattr(q_item, "text", "") or "").strip(),
+            proof=(getattr(p_item, "text", "") or "").strip(),
+            note=n_text,
+        )
+
+    return schedule, tr
 
 # =========================================================
-# PREFLIGHT PAGES (unchanged)
+# MISSIONS
 # =========================================================
-def _draw_cover_preflight_facts_strip(c, *, cw, ch, trim, bleed, spine_w, build_nonce, paper, back_x, spine_x, front_x, trim_y, barcode_x, barcode_y, barcode_w, barcode_h):
-    pad = 0.20 * inch
-    x0 = back_x + pad
-    strip_w = min(trim - 2 * pad, 3.55 * inch)
-    strip_h = 1.55 * inch
-    y_bottom = (trim_y + trim - strip_h - pad)
-
-    c.saveState()
-    c.setFillColor(colors.white)
-    c.setStrokeColor(colors.HexColor("#111111"))
-    c.setLineWidth(0.8)
-    c.roundRect(x0, y_bottom, strip_w, strip_h, 8, stroke=1, fill=1)
-    c.setFillColor(colors.HexColor("#111111")); _set_font(c, True, 10)
-    c.drawString(x0 + 0.12 * inch, y_bottom + strip_h - 0.22 * inch, "COVER PREFLIGHT FACTS")
-    _set_font(c, False, 8); c.setFillColor(colors.HexColor("#444444"))
-    c.drawString(x0 + 0.12 * inch, y_bottom + strip_h - 0.40 * inch, f"paper={paper} | nonce={str(build_nonce)[:16]}…")
-    _set_font(c, False, 7); c.setFillColor(colors.HexColor("#111111"))
-    line = 0.14 * inch; yy = y_bottom + strip_h - 0.60 * inch
-
-    def row(label: str, v_in: str, v_pt: str):
-        nonlocal yy
-        c.setFillColor(colors.HexColor("#111111")); c.drawString(x0 + 0.12 * inch, yy, label)
-        c.setFillColor(colors.HexColor("#333333")); c.drawRightString(x0 + strip_w - 0.12 * inch, yy, f"{v_in} | {v_pt}")
-        yy -= line
-
-    row("CANVAS (W×H)", f"{_fmt_in(cw / inch)}×{_fmt_in(ch / inch)}", f"{_fmt_pt(cw)}×{_fmt_pt(ch)}")
-    row("TRIM (W×H)", f"{_fmt_in(trim / inch)}×{_fmt_in(trim / inch)}", f"{_fmt_pt(trim)}×{_fmt_pt(trim)}")
-    row("BLEED", _fmt_in(bleed / inch), _fmt_pt(bleed))
-    row("SPINE W", _fmt_in(spine_w / inch), _fmt_pt(spine_w))
-    row("BACK X0", _fmt_in(back_x / inch), _fmt_pt(back_x))
-    row("SPINE X0", _fmt_in(spine_x / inch), _fmt_pt(spine_x))
-    row("FRONT X0", _fmt_in(front_x / inch), _fmt_pt(front_x))
-    row("BARCODE XY", _fmt_xy_in(barcode_x, barcode_y), _fmt_xy_pt(barcode_x, barcode_y))
-    row("BARCODE WH", f"{_fmt_in(barcode_w / inch)}×{_fmt_in(barcode_h / inch)}", f"{_fmt_pt(barcode_w)}×{_fmt_pt(barcode_h)}")
-    c.setFillColor(colors.HexColor("#666666")); _set_font(c, False, 6)
-    c.drawString(x0 + 0.12 * inch, y_bottom + 0.10 * inch, "All values are absolute PDF coords (origin bottom-left).")
-    c.restoreState()
-
-def _draw_preflight_facts_page(c: canvas.Canvas, pb: PageBox, total_pages: int, kdp: bool, paper: str, build_nonce: str) -> None:
-    trim_w_in, trim_h_in = pb.trim_w / inch, pb.trim_h / inch
-    bleed_in = (pb.bleed / inch)
-    full_w_in, full_h_in = pb.full_w / inch, pb.full_h / inch
-    safe_l_odd, safe_r_odd, safe_tb_odd = safe_margins_for_page(total_pages, kdp, 0, pb)
-    safe_l_even, safe_r_even, safe_tb_even = safe_margins_for_page(total_pages, kdp, 1, pb)
-    safe_w_odd = pb.full_w - (safe_l_odd + safe_r_odd)
-    safe_h_odd = pb.full_h - (2 * safe_tb_odd)
-    safe_w_even = pb.full_w - (safe_l_even + safe_r_even)
-    safe_h_even = pb.full_h - (2 * safe_tb_even)
-
-    def _as_in(x_pt: float) -> float: return x_pt / inch
-    factor = float(PAPER_FACTORS.get(paper, 0.002252))
-    spine_in = max(float(total_pages) * factor, 0.001)
-
-    c.saveState()
-    c.setFillColor(colors.white); c.rect(0, 0, pb.full_w, pb.full_h, fill=1, stroke=0)
-    c.setFillColor(INK_BLACK); _set_font(c, True, 24)
-    c.drawCentredString(pb.full_w / 2, pb.full_h - 1.0 * inch, "KDP PREFLIGHT — NO FEELINGS, JUST FACTS")
-    _set_font(c, False, 11); c.setFillColor(INK_GRAY_70)
-    c.drawCentredString(pb.full_w / 2, pb.full_h - 1.28 * inch, f"Pages fixed: {total_pages}  |  Paper: {paper}  |  nonce: {build_nonce[:16]}…")
-    left, top, line = 0.75 * inch, pb.full_h - 1.75 * inch, 0.24 * inch
-    c.setFillColor(INK_BLACK); _set_font(c, True, 12)
-    c.drawString(left, top, "PAGE GEOMETRY"); _set_font(c, False, 11)
-
-    y = top - 0.35 * inch
-    rows = [
-        ("TRIM (W x H)", f"{_fmt_in(trim_w_in)} × {_fmt_in(trim_h_in)}", f"{_fmt_pt(pb.trim_w)} × {_fmt_pt(pb.trim_h)}"),
-        ("BLEED", _fmt_in(bleed_in), _fmt_pt(pb.bleed)),
-        ("FULL PAGE (W x H)", f"{_fmt_in(full_w_in)} × {_fmt_in(full_h_in)}", f"{_fmt_pt(pb.full_w)} × {_fmt_pt(pb.full_h)}"),
-        ("SAFE W (odd/even)", f"{_fmt_in(_as_in(safe_w_odd))} / {_fmt_in(_as_in(safe_w_even))}", f"{_fmt_pt(safe_w_odd)} / {_fmt_pt(safe_w_even)}"),
-        ("SAFE H (odd/even)", f"{_fmt_in(_as_in(safe_h_odd))} / {_fmt_in(_as_in(safe_h_even))}", f"{_fmt_pt(safe_h_odd)} / {_fmt_pt(safe_h_even)}"),
-        ("SAFE TB (odd/even)", f"{_fmt_in(_as_in(safe_tb_odd))} / {_fmt_in(_as_in(safe_tb_even))}", f"{_fmt_pt(safe_tb_odd)} / {_fmt_pt(safe_tb_even)}"),
-        ("SAFE L (odd/even)", f"{_fmt_in(_as_in(safe_l_odd))} / {_fmt_in(_as_in(safe_l_even))}", f"{_fmt_pt(safe_l_odd)} / {_fmt_pt(safe_l_even)}"),
-        ("SAFE R (odd/even)", f"{_fmt_in(_as_in(safe_r_odd))} / {_fmt_in(_as_in(safe_r_even))}", f"{_fmt_pt(safe_r_odd)} / {_fmt_pt(safe_r_even)}"),
-        ("GUTTER (inside margin)", _fmt_in(_kdp_inside_gutter_in(total_pages)), _fmt_pt(_kdp_inside_gutter_in(total_pages) * inch)),
-        ("SPINE WIDTH (cover)", _fmt_in(spine_in), _fmt_pt(spine_in * inch)),
-    ]
-
-    col1, col2, col3 = left, left + 2.6 * inch, left + 5.3 * inch
-    c.setStrokeColor(INK_BLACK); c.setLineWidth(1)
-    c.roundRect(left - 0.2 * inch, y - (len(rows) * line) - 0.25 * inch, pb.full_w - 2 * left + 0.4 * inch, (len(rows) * line) + 0.55 * inch, 10, stroke=1, fill=0)
-    _set_font(c, True, 10); c.drawString(col1, y + 0.10 * inch, "Metric"); c.drawString(col2, y + 0.10 * inch, "Inches"); c.drawString(col3, y + 0.10 * inch, "Points (pt)")
-    c.line(left - 0.15 * inch, y + 0.06 * inch, pb.full_w - left + 0.15 * inch, y + 0.06 * inch)
-    _set_font(c, False, 10)
-    yy = y - 0.12 * inch
-    for label, inches_val, pt_val in rows:
-        c.drawString(col1, yy, str(label)); c.drawString(col2, yy, str(inches_val)); c.drawString(col3, yy, str(pt_val))
-        yy -= line
-    _set_font(c, False, 9); c.setFillColor(INK_GRAY_70)
-    c.drawString(left, 0.85 * inch, "Tip: enable 'Preflight Debug' too — green box = safe, red = trim/bleed.")
-    c.restoreState()
+@dataclass
+class Mission:
+    title: str
+    xp: int
+    movement: str
+    thinking: str
+    proof: str
 
 # =========================================================
 # ICONS, SHAPES & BRANDING
@@ -590,31 +439,6 @@ def _draw_eddie(c: canvas.Canvas, cx: float, cy: float, r: float, style: str = "
         c.roundRect(cx - r * 0.12, cy - r * 0.45, r * 0.24, r * 0.28, r * 0.10, stroke=0, fill=1)
     c.restoreState()
 
-def _icon_run(c: canvas.Canvas, x: float, y: float, size: float):
-    c.saveState(); c.setStrokeColor(INK_BLACK); c.setLineWidth(max(1.2, size * 0.10))
-    c.circle(x + size * 0.30, y + size * 0.72, size * 0.12, stroke=1, fill=0)
-    c.line(x + size * 0.30, y + size * 0.60, x + size * 0.30, y + size * 0.30)
-    c.line(x + size * 0.30, y + size * 0.50, x + size * 0.55, y + size * 0.40)
-    c.line(x + size * 0.30, y + size * 0.50, x + size * 0.05, y + size * 0.40)
-    c.line(x + size * 0.30, y + size * 0.30, x + size * 0.15, y + size * 0.10)
-    c.line(x + size * 0.30, y + size * 0.30, x + size * 0.50, y + size * 0.12)
-    c.restoreState()
-
-def _icon_brain(c: canvas.Canvas, x: float, y: float, size: float):
-    c.saveState(); c.setStrokeColor(INK_BLACK); c.setLineWidth(max(1.2, size * 0.08))
-    c.roundRect(x + size * 0.15, y + size * 0.20, size * 0.70, size * 0.60, size * 0.18, stroke=1, fill=0)
-    c.line(x + size * 0.50, y + size * 0.20, x + size * 0.50, y + size * 0.80)
-    c.circle(x + size * 0.35, y + size * 0.50, size * 0.05, stroke=1, fill=1)
-    c.circle(x + size * 0.65, y + size * 0.50, size * 0.05, stroke=1, fill=1)
-    c.restoreState()
-
-def _icon_check(c: canvas.Canvas, x: float, y: float, size: float):
-    c.saveState(); c.setStrokeColor(INK_BLACK); c.setLineWidth(max(1.2, size * 0.08))
-    c.rect(x + size * 0.15, y + size * 0.20, size * 0.70, size * 0.60, stroke=1, fill=0)
-    c.line(x + size * 0.30, y + size * 0.45, x + size * 0.45, y + size * 0.30)
-    c.line(x + size * 0.45, y + size * 0.30, x + size * 0.70, y + size * 0.65)
-    c.restoreState()
-
 @dataclass
 class ShapeSpec:
     kind: str
@@ -632,8 +456,7 @@ def _generate_shapes(pb: PageBox, sl: float, sr: float, stb: float, pre_reader: 
     min_y, max_y = stb + card_h + pad, pb.full_h - stb - header_h - pad
     if max_x <= min_x or max_y <= min_y:
         return []
-
-    shapes = []
+    shapes: List[ShapeSpec] = []
     for _ in range(int(rng.integers(3, 8))):
         shapes.append(ShapeSpec(
             kind=str(rng.choice(["triangle", "square", "star"])),
@@ -748,7 +571,7 @@ def _sketch_compute(img_bytes: bytes, target_w: int, target_h: int) -> bytes:
     pil = Image.fromarray(norm).convert("L")
     sw, sh = pil.size
     s = min(sw, sh)
-    pil = pil.crop(((sw - s) // 2, (sh - s) // 2, (sw + s) // 2, (sh + s) // 2)).resize((target_w, target_h), Image.LANCZOS)
+    pil = pil.crop(((sw - s) // 2, (sh - s) // 2, (sw + s) // 2, (sw + s) // 2)).resize((target_w, target_h), Image.LANCZOS)
     out = io.BytesIO()
     pil.point(lambda p: 255 if p > 200 else 0).convert("1").save(out, format="PNG", optimize=True)
     outv = out.getvalue()
@@ -767,9 +590,9 @@ def _get_sketch_cached(img_bytes: bytes, target_w: int, target_h: int) -> bytes:
     return out
 
 # =========================================================
-# OVERLAY (QUEST CARD) — PATCHED: Paragraph wrap for movement/thinking/proof
+# OVERLAY (QUEST CARD) — Paragraph wrapping + HARD overflow gate
 # =========================================================
-def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is_senior):
+def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission: Mission, debug, pre_reader, is_senior):
     hh = 0.75 * inch
     x0 = sl
     w = max(1.0, pb.full_w - sr - x0)
@@ -778,12 +601,13 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
     z_rgb = _get_hour_color(hour)
 
     c.saveState()
+    # Header
     c.setFillColor(colors.Color(z_rgb[0], z_rgb[1], z_rgb[2]))
     c.setStrokeColor(INK_BLACK)
     c.setLineWidth(1)
     c.rect(x0, ytb, w, hh, fill=1, stroke=1)
 
-    # Timeline only for kid mode
+    # Timeline (kid only)
     if not is_senior:
         pad_x = 0.25 * inch
         avail_w = w - 2 * pad_x
@@ -802,52 +626,50 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
                 c.setLineWidth(0.5)
                 c.circle(hx, timeline_y, 2, fill=1, stroke=1)
 
+    # Header text
     c.setFillColor(colors.white if sum(z_rgb[:3]) < 1.5 else INK_BLACK)
     _set_font(c, True, 14)
     c.drawString(x0 + 0.18 * inch, ytb + hh - 0.48 * inch, f"{_fmt_hour(hour)}  {zone.icon}  {zone.name}")
     _set_font(c, False, 10)
     c.drawString(x0 + 0.18 * inch, ytb + 0.15 * inch, f"{zone.quest_type} • {zone.atmosphere}")
 
+    # Card box
     cy = stb
     max_ch = ytb - cy - 0.15 * inch
-
-    if pre_reader and not is_senior:
-        ch, sc = min(max_ch, 2.45 * inch), None
-    else:
-        sc = _autoscale_mission_text(mission, w, x0, 0.18 * inch, max_ch, is_senior)
-        ch = min(max_ch, max(1.85 * inch, sc["needed"]))
-
+    ch = min(max_ch, (2.45 * inch if (pre_reader and not is_senior) else 2.85 * inch))
     c.setFillColor(colors.white)
     c.setStrokeColor(INK_BLACK)
     c.rect(x0, cy, w, ch, fill=1, stroke=1)
+
     yc = cy + ch - 0.18 * inch
     c.setFillColor(INK_BLACK)
 
     if pre_reader and not is_senior:
+        # Minimal kid layout (keep drawString)
         _set_font(c, True, 14)
         c.drawString(x0 + 0.18 * inch, yc - 10, _kid_short(mission.title, 3) or "MISSION")
         _set_font(c, True, 11)
         c.drawRightString(x0 + w - 0.18 * inch, yc - 10, f"+{int(mission.xp)} XP")
-        sy = yc - 0.50 * inch
-        _icon_run(c, x0 + 0.18 * inch, sy - 0.068 * inch, 0.34 * inch)
+
         _set_font(c, False, 12)
-        c.drawString(x0 + 0.45 * inch, sy, _kid_short(mission.movement, 3) or "Bewegen!")
-        _icon_brain(c, x0 + 0.18 * inch, sy - 0.46 * inch - 0.068 * inch, 0.34 * inch)
-        _set_font(c, False, 12)
-        c.drawString(x0 + 0.45 * inch, sy - 0.46 * inch, mission.thinking)
-        _icon_check(c, x0 + 0.18 * inch, sy - 0.92 * inch - 0.068 * inch, 0.34 * inch)
-        _set_font(c, False, 12)
-        c.drawString(x0 + 0.45 * inch, sy - 0.92 * inch, _kid_short(mission.proof, 4) or "Haken!")
+        c.drawString(x0 + 0.18 * inch, yc - 0.55 * inch, _kid_short(mission.movement, 4) or "Bewegen!")
+        c.drawString(x0 + 0.18 * inch, yc - 1.00 * inch, mission.thinking or "")
+        c.drawString(x0 + 0.18 * inch, yc - 1.45 * inch, _kid_short(mission.proof, 4) or "Haken!")
+
         _set_font(c, False, 8)
         c.setFillColor(INK_GRAY_70)
         c.drawString(x0 + 0.18 * inch, cy + 0.12 * inch, "Eltern: kurz vorlesen – Kind macht’s nach.")
     else:
+        # Labels
         title_label = "TAGESIMPULS" if is_senior else "MISSION"
         move_label  = "BEWEGUNG:"
         think_label = "GEDANKEN:" if is_senior else "SUCHEN:"
         proof_label = "ERLEDIGT:" if is_senior else "PROOF:"
 
-        # --- geometry & styles ---
+        # styles
+        STYLE_BODY = "SeniorBody" if is_senior else "KidsText"
+
+        # Geometry
         pad_left = 0.18 * inch
         pad_right = 0.18 * inch
         label_x = x0 + pad_left
@@ -859,72 +681,55 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
         think_w = (x0 + w - pad_right) - think_x
         proof_w = (x0 + w - pad_right) - proof_x
 
-        STYLE_BODY = "SeniorBody" if is_senior else "KidsText"
-
-        # Title (short)
-        _set_font(c, True, sc["ts"])
-        c.drawString(x0 + 0.18 * inch, yc - sc["tl"] + 2, f"{title_label}: {mission.title}")
+        # Title
+        _set_font(c, True, 13 if not is_senior else 16)
+        c.drawString(x0 + 0.18 * inch, yc - (13 * 1.22) + 2, f"{title_label}: {mission.title}")
 
         if not is_senior:
-            _set_font(c, True, max(8, sc["ts"] - 2))
-            c.drawRightString(x0 + w - 0.18 * inch, yc - sc["tl"] + 2, f"+{int(mission.xp)} XP")
+            _set_font(c, True, 11)
+            c.drawRightString(x0 + w - 0.18 * inch, yc - (13 * 1.22) + 2, f"+{int(mission.xp)} XP")
 
         # Movement
-        yt = yc - sc["tl"] - 0.10 * inch
-        _set_font(c, True, sc["ls"])
-        c.drawString(label_x, yt - sc["ll"] + 2, move_label)
+        yt = yc - (13 * 1.22) - 0.10 * inch
+        _set_font(c, True, 10 if not is_senior else 12)
+        c.drawString(label_x, yt - (10 * 1.22) + 2, move_label)
 
-        move_top = yt - sc["ll"] + 6
+        move_top = yt - (10 * 1.22) + 6
         move_h = 0.62 * inch if is_senior else 0.58 * inch
         ok = draw_wrapped_text(
-            c,
-            mission.movement or "",
-            x=move_x,
-            y=move_top,
-            width=move_w,
-            height=move_h,
-            style_name=STYLE_BODY,
-            return_fit=True,
+            c, mission.movement or "",
+            x=move_x, y=move_top, width=move_w, height=move_h,
+            style_name=STYLE_BODY, return_fit=True
         )
         if not ok:
             raise ValueError("OVERFLOW: movement text does not fit card")
 
-        # Thinking (directly under movement box)
+        # Thinking
         yt2 = (move_top - move_h) - 0.10 * inch
-        _set_font(c, True, sc["ls"])
-        c.drawString(label_x, yt2 - sc["ll"] + 2, think_label)
+        _set_font(c, True, 10 if not is_senior else 12)
+        c.drawString(label_x, yt2 - (10 * 1.22) + 2, think_label)
 
-        think_top = yt2 - sc["ll"] + 6
+        think_top = yt2 - (10 * 1.22) + 6
         think_h = 0.70 * inch if is_senior else 0.66 * inch
         ok = draw_wrapped_text(
-            c,
-            mission.thinking or "",
-            x=think_x,
-            y=think_top,
-            width=think_w,
-            height=think_h,
-            style_name=STYLE_BODY,
-            return_fit=True,
+            c, mission.thinking or "",
+            x=think_x, y=think_top, width=think_w, height=think_h,
+            style_name=STYLE_BODY, return_fit=True
         )
         if not ok:
             raise ValueError("OVERFLOW: thinking text does not fit card")
 
-        # Proof line
+        # Proof
         c.rect(x0 + 0.18 * inch, cy + 0.18 * inch, 0.20 * inch, 0.20 * inch, fill=0, stroke=1)
-        _set_font(c, True, sc["ls"])
+        _set_font(c, True, 10 if not is_senior else 12)
         c.drawString(x0 + 0.43 * inch, cy + 0.20 * inch, proof_label)
 
         proof_top = cy + 0.40 * inch
         proof_h = 0.32 * inch
         ok = draw_wrapped_text(
-            c,
-            mission.proof or "",
-            x=proof_x,
-            y=proof_top,
-            width=proof_w,
-            height=proof_h,
-            style_name=STYLE_BODY,
-            return_fit=True,
+            c, mission.proof or "",
+            x=proof_x, y=proof_top, width=proof_w, height=proof_h,
+            style_name=STYLE_BODY, return_fit=True
         )
         if not ok:
             raise ValueError("OVERFLOW: proof text does not fit card")
@@ -939,7 +744,7 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
     c.restoreState()
 
 # =========================================================
-# COVER COLLAGE (unchanged)
+# COVER COLLAGE
 # =========================================================
 def _cover_collage_png(uploads, size_px: int, seed: int) -> Optional[bytes]:
     files = list(uploads or [])
@@ -975,6 +780,9 @@ def _cover_collage_png(uploads, size_px: int, seed: int) -> Optional[bytes]:
 # BUILDERS
 # =========================================================
 def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pre_reader, build_nonce, is_senior) -> bytes:
+    if not qd:
+        raise RuntimeError(f"quest_data.py fehlt/fehlerhaft: {_QD_IMPORT_ERROR if '_QD_IMPORT_ERROR' in globals() else ''}")
+
     if not uploads:
         raise ValueError("Keine Uploads vorhanden. Bitte lade Fotos hoch.")
 
@@ -988,17 +796,14 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
         try:
             total_bytes += len(up.getbuffer())
         except Exception:
-            try:
-                total_bytes += len(_read_upload_bytes(up))
-            except ValueError:
-                pass
+            total_bytes += len(_read_upload_bytes(up))
         if total_bytes > MAX_TOTAL_UPLOAD_BYTES:
             raise ValueError(f"Uploads insgesamt zu groß (max {MAX_TOTAL_UPLOAD_BYTES // (1024*1024)}MB). Bitte weniger/kleinere Bilder.")
 
     total = KDP_PAGES_FIXED
     MISSION_PAGES = 24
 
-    pb = page_box(TRIM, TRIM, kdp_bleed=kdp)
+    pb = page_box(TRIM, TRIM, kdp_bleed=bool(kdp))
     final = (list(uploads) * (MISSION_PAGES // len(uploads) + 1))[:MISSION_PAGES]
 
     buf = io.BytesIO()
@@ -1007,57 +812,51 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
     c.setAuthor("Eddies World")
     c.setSubject(f"nonce={build_nonce}")
 
-    schedule = build_book_schedule(_stable_seed(build_nonce), start_hour=6, count=MISSION_PAGES)
+    schedule, trackers = build_book_schedule(_stable_seed(build_nonce), start_hour=6, count=MISSION_PAGES)
 
     seed_base = _stable_seed(name)
     nonce_seed = _stable_seed(build_nonce)
     current_page_idx = 0
 
-    # INTRO PAGE
-    sl, sr, stb = safe_margins_for_page(total, kdp, current_page_idx, pb)
+    # INTRO PAGE (simple)
+    sl, sr, stb = safe_margins_for_page(total, bool(kdp), current_page_idx, pb)
+    c.setFillColor(colors.white)
+    c.rect(0, 0, pb.full_w, pb.full_h, fill=1, stroke=0)
+    gen = _name_genitive(name)
+    c.setFillColor(INK_BLACK)
+    _set_font(c, True, 34)
 
-    if preflight:
-        _draw_preflight_facts_page(c=c, pb=pb, total_pages=total, kdp=bool(kdp), paper=str(paper), build_nonce=str(build_nonce))
-        if debug:
-            _draw_kdp_debug_guides(c, pb, sl, sr, stb)
-        _imprint_nonce(c, build_nonce)
-        c.showPage()
-        current_page_idx += 1
-    else:
-        c.setFillColor(colors.white)
-        c.rect(0, 0, pb.full_w, pb.full_h, fill=1, stroke=0)
-        gen = _name_genitive(name)
-        c.setFillColor(INK_BLACK)
-        _set_font(c, True, 34)
+    book_title = f"{gen} Tagesbegleiter" if is_senior else f"{gen} Abenteuerbuch"
+    subtitle = "24 Stunden • In Ruhe betrachten • Entspannen" if is_senior else "24 Stunden • 24 Mini-Quests • Haken setzen"
+    c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 1.90 * inch, book_title)
+    _set_font(c, False, 14)
+    c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 2.35 * inch, "Erstellt mit")
+    _set_font(c, True, 18)
+    c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 2.70 * inch, "E. P. E.")
+    _set_font(c, False, 14)
+    c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 3.00 * inch, "Eddie's Print Engine")
+    _draw_eddie(c, pb.full_w / 2, pb.full_h / 2, 1.20 * inch, style=style)
+    c.setFillColor(INK_GRAY_70)
+    _set_font(c, False, 13)
+    c.drawCentredString(pb.full_w / 2, stb + 0.75 * inch, subtitle)
 
-        book_title = f"{gen} Tagesbegleiter" if is_senior else f"{gen} Abenteuerbuch"
-        subtitle = "24 Stunden • In Ruhe betrachten • Entspannen" if is_senior else "24 Stunden • 24 Mini-Quests • Haken setzen"
-
-        c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 1.90 * inch, book_title)
-        _set_font(c, False, 14)
-        c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 2.35 * inch, "Erstellt mit")
-        _set_font(c, True, 18)
-        c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 2.70 * inch, "E. P. E.")
-        _set_font(c, False, 14)
-        c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 3.00 * inch, "Eddie's Print Engine")
-        _draw_eddie(c, pb.full_w / 2, pb.full_h / 2, 1.20 * inch, style=style)
-        c.setFillColor(INK_GRAY_70)
-        _set_font(c, False, 13)
-        c.drawCentredString(pb.full_w / 2, stb + 0.75 * inch, subtitle)
-        if debug:
-            _draw_kdp_debug_guides(c, pb, sl, sr, stb)
-        _imprint_nonce(c, build_nonce)
-        c.showPage()
-        current_page_idx += 1
+    if debug:
+        _draw_kdp_debug_guides(c, pb, sl, sr, stb)
+    _imprint_nonce(c, build_nonce)
+    c.showPage()
+    current_page_idx += 1
 
     # CONTENT PAGES
     for i, up in enumerate(final):
-        sl, sr, stb = safe_margins_for_page(total, kdp, current_page_idx, pb)
+        sl, sr, stb = safe_margins_for_page(total, bool(kdp), current_page_idx, pb)
 
-        c.drawImage(
-            ImageReader(io.BytesIO(_get_sketch_cached(_wash_upload_to_bytes(up), int(pb.full_w * DPI / 72), int(pb.full_h * DPI / 72)))),
-            0, 0, pb.full_w, pb.full_h
+        # background sketch
+        sk_bytes = _get_sketch_cached(
+            _wash_upload_to_bytes(up),
+            int(pb.full_w * DPI / 72),
+            int(pb.full_h * DPI / 72),
         )
+        c.drawImage(ImageReader(io.BytesIO(sk_bytes)), 0, 0, pb.full_w, pb.full_h)
 
         hour = (6 + i) % 24
         seed = int(seed_base ^ nonce_seed ^ (i << 1) ^ hour) & 0xFFFFFFFF
@@ -1065,12 +864,14 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
         _draw_shapes(c, shapes)
 
         tri = sum(1 for s in shapes if s.kind == "triangle")
-        sq = sum(1 for s in shapes if s.kind == "square")
+        sq  = sum(1 for s in shapes if s.kind == "square")
         st_ = sum(1 for s in shapes if s.kind == "star")
         t_shapes = len(shapes)
 
-        q_data = schedule[hour]
+        q = schedule[hour]
+        zone = _get_zone_for_hour(hour)
 
+        # SENIOR
         if is_senior:
             senior_moves = [
                 "Heben Sie die Schultern sanft an und lassen Sie sie wieder sinken (3×, im eigenen Tempo).",
@@ -1079,60 +880,87 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
                 "Ziehen Sie die Fußspitzen im Sitzen sanft an und lassen Sie wieder locker.",
                 "Legen Sie die Hände flach auf den Tisch und spreizen Sie die Finger leicht.",
                 "Neigen Sie den Kopf behutsam von einer Seite zur anderen.",
-                "Reiben Sie Ihre Handflächen aneinander, bis sie sich warm anfühlen."
+                "Reiben Sie Ihre Handflächen aneinander, bis sie sich warm anfühlen.",
             ]
             s_rng = np.random.default_rng(seed)
             m_move = str(s_rng.choice(senior_moves))
             m_think = f"Betrachten Sie das Bild in Ruhe. Entdecken Sie {t_shapes} Details im Bild (Formen oder Objekte) – ohne Zeitdruck."
+
+            proof = "☐ Heute gemacht"
+            # soft link to quest_data proof pool (short only)
+            extra = (q.proof or "").strip()
+            if extra and len(extra) <= 70:
+                proof = f"☐ Heute gemacht — {extra}"
 
             mission = Mission(
                 title="Aktiv bleiben",
                 xp=0,
                 movement=m_move,
                 thinking=m_think,
-                proof="☐ Heute gemacht"
+                proof=proof,
             )
+
+        # KID
         else:
-            str_tri = f"{tri} {_de_plural(tri, 'Dreieck', 'Dreiecke')}"
-            str_sq  = f"{sq} {_de_plural(sq, 'Quadrat', 'Quadrate')}"
-            str_st  = f"{st_} {_de_plural(st_, 'Stern', 'Sterne')}"
+            kid_moves = [
+                "Mache 10 Kniebeugen.",
+                "20 Sekunden Hampelmann.",
+                "Streck dich so groß du kannst.",
+                "Laufe 10 Sekunden auf der Stelle.",
+                "Hüpfe 5x hoch in die Luft.",
+                "Berühre 10x deine Zehenspitzen.",
+                "Kreise deine Arme wie Windmühlen.",
+                "Mache 5 Froschsprünge.",
+                "Balanciere 10 Sekunden auf einem Bein.",
+                "Mache 3 große Ausfallschritte.",
+            ]
+            km_rng = np.random.default_rng(seed)
+            m_move = str(km_rng.choice(kid_moves))
 
             if pre_reader:
                 m_think = f"{tri} △   {sq} □   {st_} ★"
-                m_move = _kid_short(q_data["movement"], 3)
                 m_proof = "Haken!"
+                title = "MISSION"
+                xp = int(q.xp)
             else:
+                str_tri = f"{tri} {_de_plural(tri, 'Dreieck', 'Dreiecke')}"
+                str_sq  = f"{sq} {_de_plural(sq, 'Quadrat', 'Quadrate')}"
+                str_st  = f"{st_} {_de_plural(st_, 'Stern', 'Sterne')}"
+
+                base_think = (q.thinking or "").strip()
+
+                # short count hint layer (deterministic)
                 t_idx = i % 3
                 if t_idx == 0:
-                    m_think = f"Finde {str_tri}, {str_sq} und {str_st}."
+                    hint = f"Finde {str_tri}, {str_sq} und {str_st}."
                 elif t_idx == 1:
-                    m_think = f"Spüre insgesamt {t_shapes} versteckte Formen auf (△, □, ★)."
+                    hint = f"Spüre insgesamt {t_shapes} Formen auf (△, □, ★)."
                 else:
-                    m_think = f"Suche: {tri}x Dreieck, {sq}x Quadrat, {st_}x Stern."
+                    hint = f"Suche: {tri}x Dreieck, {sq}x Quadrat, {st_}x Stern."
 
-                m_move = q_data["movement"]
-                m_proof = q_data["proof"] or ""
+                # Combine (kept compact; overflow gate will stop if too long)
+                m_think = f"{base_think} {hint}".strip()
+                if t_shapes == 0:
+                    m_think = "Suche Formen (△, □, ★) im Bild. Wenn keine da sind: schaue nach Mustern oder Dingen."
 
-                if ("Dreieck" in m_proof or "Dreie" in m_proof) and tri == 0:
-                    m_proof = "Zähle laut mit und hake die Mission ab."
-                elif ("Quadrat" in m_proof or "Quadrate" in m_proof) and sq == 0:
-                    m_proof = "Verbinde alle gefundenen Formen mit einer Linie."
-                elif ("Stern" in m_proof or "Sterne" in m_proof) and st_ == 0:
-                    m_proof = "Setze einen Punkt in jede gefundene Form."
+                # proof from proof pool (+ optional note only if short)
+                m_proof = (q.proof or "").strip()
+                if q.note and len(q.note) <= 90:
+                    # only attach if it won't explode the proof box
+                    m_proof = f"{m_proof} {q.note}".strip()
 
-                if tri == 1: m_proof = m_proof.replace("Dreiecke", "Dreieck")
-                if sq == 1: m_proof = m_proof.replace("Quadrate", "Quadrat")
-                if st_ == 1: m_proof = m_proof.replace("Sterne", "Stern")
+                title = q.title or f"{zone.quest_type}: {zone.name}"
+                xp = int(q.xp)
 
             mission = Mission(
-                title=q_data["title"],
-                xp=q_data["xp"],
+                title=title,
+                xp=xp,
                 movement=m_move,
                 thinking=m_think,
                 proof=m_proof,
             )
 
-        _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is_senior)
+        _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, bool(debug), bool(pre_reader), bool(is_senior))
 
         if eddie:
             _draw_eddie(c, pb.full_w - sr - 0.18 * inch, stb + 0.18 * inch, 0.18 * inch, style=style)
@@ -1142,8 +970,8 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
         current_page_idx += 1
         gc.collect()
 
-    # OUTRO PAGE
-    sl, sr, stb = safe_margins_for_page(total, kdp, current_page_idx, pb)
+    # OUTRO PAGE (CTA + QR)
+    sl, sr, stb = safe_margins_for_page(total, bool(kdp), current_page_idx, pb)
     c.setFillColor(colors.white)
     c.rect(0, 0, pb.full_w, pb.full_h, fill=1, stroke=0)
 
@@ -1172,7 +1000,6 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
     scale = qr_size / max(qr_w, qr_h)
     d = Drawing(qr_size, qr_size, transform=[scale, 0, 0, scale, -bounds[0] * scale, -bounds[1] * scale])
     d.add(qr_code)
-
     renderPDF.draw(d, c, (pb.full_w - qr_size) / 2, pb.full_h - stb - 7.65 * inch)
 
     c.setFillColor(INK_BLACK)
@@ -1189,6 +1016,7 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
 
     if debug:
         _draw_kdp_debug_guides(c, pb, sl, sr, stb)
+
     _imprint_nonce(c, build_nonce)
     c.showPage()
 
@@ -1211,17 +1039,18 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
     c.setFillColor(colors.white)
     c.rect(0, 0, cw, ch, fill=1, stroke=0)
 
+    # spine background
     c.setFillColor(INK_BLACK)
     c.rect(BLEED + TRIM, BLEED, sw, TRIM, fill=1, stroke=0)
 
     back_x = BLEED
     spine_x = BLEED + TRIM
     front_x = BLEED + TRIM + sw
-    trim_y = BLEED
 
     book_title_cov = "TAGESBEGLEITER" if is_senior else "ABENTEUERBUCH"
     subtitle_cov = "24 Impulse • 24 Stunden • KDP-ready" if is_senior else "24 Missionen • 24 Stunden • KDP-ready"
 
+    # spine text
     if KDP_PAGES_FIXED >= SPINE_TEXT_MIN_PAGES:
         c.saveState()
         c.setFillColor(colors.white)
@@ -1265,12 +1094,11 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
     c.drawCentredString(fx + TRIM / 2, BLEED + TRIM * 0.77, "Erstellt mit E. P. E. — Eddie's Print Engine")
     _draw_eddie(c, fx + TRIM / 2, BLEED + TRIM * 0.60, TRIM * 0.14, style=style)
 
-    # Debug / preflight cover markings (unchanged)
+    # Barcode debug box (optional)
     if debug or preflight:
         bc_w, bc_h = 2.0 * inch, 1.2 * inch
         bc_x = BLEED + TRIM - 0.25 * inch - bc_w
         bc_y = BLEED + 0.25 * inch
-
         c.saveState()
         c.setStrokeColor(colors.red)
         c.setLineWidth(1)
@@ -1280,43 +1108,8 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
         _set_font(c, True, 10)
         c.drawCentredString(bc_x + bc_w / 2, bc_y + 0.65 * inch, "KDP BARCODE ZONE")
         _set_font(c, False, 8)
-        c.drawCentredString(bc_x + bc_w / 2, bc_y + 0.45 * inch, "2.0\" × 1.2\"")
+        c.drawCentredString(bc_x + bc_w / 2, bc_y + 0.45 * inch, '2.0" × 1.2"')
         c.restoreState()
-
-        _draw_cover_preflight_facts_strip(
-            c,
-            cw=cw, ch=ch,
-            trim=TRIM, bleed=BLEED,
-            spine_w=sw,
-            build_nonce=str(build_nonce),
-            paper=str(paper),
-            back_x=back_x,
-            spine_x=spine_x,
-            front_x=front_x,
-            trim_y=trim_y,
-            barcode_x=bc_x, barcode_y=bc_y,
-            barcode_w=bc_w, barcode_h=bc_h,
-        )
-
-        safe_margin = 0.25 * inch
-        def _safe_box(x0b: float, y0b: float, wb: float, hb: float, label: str):
-            c.saveState()
-            c.setStrokeColor(DEBUG_SAFE_COLOR)
-            c.setLineWidth(1)
-            c.setDash(3, 3)
-            c.rect(x0b, y0b, wb, hb, stroke=1, fill=0)
-            c.setDash()
-            c.setFillColor(DEBUG_SAFE_COLOR)
-            _set_font(c, True, 8)
-            c.drawString(x0b + 0.06 * inch, y0b + hb + 0.06 * inch, label)
-            _set_font(c, False, 7)
-            c.drawString(x0b + 0.06 * inch, y0b + hb - 0.18 * inch, "SAFE = 0.25\" from TRIM")
-            c.restoreState()
-
-        box_w = TRIM - 2 * safe_margin
-        box_h = TRIM - 2 * safe_margin
-        _safe_box(back_x + safe_margin, trim_y + safe_margin, box_w, box_h, "BACK COVER SAFE BOX")
-        _safe_box(front_x + safe_margin, trim_y + safe_margin, box_w, box_h, "FRONT COVER SAFE BOX")
 
     if build_nonce:
         _imprint_nonce(c, build_nonce)
@@ -1326,10 +1119,9 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
     return buf.getvalue()
 
 # =========================================================
-# UI (unchanged except imports already handled)
+# UI
 # =========================================================
 st.set_page_config(page_title=APP_TITLE, layout="centered", page_icon=APP_ICON)
-
 st.markdown(f"<h1 style='text-align:center; margin-bottom: 0;'>{APP_TITLE}</h1>", unsafe_allow_html=True)
 st.caption(f"Build: {BUILD_TAG}")
 
@@ -1355,9 +1147,10 @@ if access_mode == "Free":
                 st.error("Ungültiger Code.")
 
 if qd is None:
-    st.warning("quest_data.py fehlt – Engine läuft trotzdem (Fallback-Welt aktiv).")
+    st.error("quest_data.py fehlt/fehlerhaft — v6 benötigt die Pools.")
     if "_QD_IMPORT_ERROR" in globals() and _QD_IMPORT_ERROR:
         st.code(_QD_IMPORT_ERROR, language="text")
+    st.stop()
 
 st.session_state.setdefault("assets", None)
 st.session_state.setdefault("upload_sig", "")
@@ -1380,12 +1173,7 @@ def _uploads_sig(ul) -> str:
             data = bytes(buf[:2048]) + bytes(buf[-2048:]) if len(buf) > 4096 else bytes(buf)
             h.update(hashlib.sha256(data).digest())
         except Exception:
-            try:
-                b = _read_upload_bytes(up)
-            except ValueError:
-                h.update(b"OVERSIZE")
-                h.update(getattr(up, "name", "x").encode("utf-8", "ignore"))
-                continue
+            b = _read_upload_bytes(up)
             h.update(len(b).to_bytes(8, "little"))
             h.update(hashlib.sha256(b[:2048]).digest())
     return h.hexdigest()
@@ -1417,7 +1205,7 @@ with st.container(border=True):
         kdp = st.toggle("KDP Mode (Beschnittzugabe aktivieren)", True)
         eddie_guide = st.toggle("Eddie-Marke auf jeder Seite drucken", True)
         debug = st.toggle("🛠️ Preflight Debug (Rote Linien - NICHT drucken!)", False)
-        preflight = st.toggle("📏 KDP Preflight Mode (Maße/Float-Werte auf Intro-Seite + Cover Strip/Boxes)", False)
+        preflight = st.toggle("📏 Preflight Mode (derzeit nur Cover-Barcodebox)", False)
 
     st.info("💡 **Tipp:** Es müssen keine Personen zu sehen sein! Haustiere, Zimmer, Spielzeug oder Garten ergeben fantastische Ausmalbilder.")
     uploads = st.file_uploader("Fotos hochladen (10-24 empfohlen)", accept_multiple_files=True, type=["jpg", "jpeg", "png", "webp"])
