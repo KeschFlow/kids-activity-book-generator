@@ -1,0 +1,10 @@
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.streamlit/secrets.toml
+fair_use.db
+*.pdf
