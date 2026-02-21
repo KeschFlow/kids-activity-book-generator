@@ -1,14 +1,7 @@
-# =========================================================
+# ============================
 # app.py — E. P. E. Eddie's Print Engine — v5.12.0 DUAL MODE
-#
-# ULTIMATE MASTER:
-# - DUAL MODE: "kid" (Gamification, XP) vs "senior" (Ruhig, Würdevoll, große Schrift)
-# - Timeline: 24-Punkt-Farb-Timeline pro Seite (bei Senioren ausgeblendet)
-# - Logic: Singular/Plural Auto-Korrektur + 0-Werte Fallback für Quests
-# - QR CTA OUTRO: Vector QR (print-sharp) -> https://keschflow.github.io/start/
-# - KDP READY: Safe Zones, Barcode Box, Cover Facts Strip, 26 Pages fixed
-# - SECURITY: 12MB/160MB Caps, OpenCV 25MP Guard, SQLite Fair-Use Rate Limit
-# =========================================================
+# (PATCHED for Engine 2.0 text wrapping via text_layout.draw_wrapped_text)
+# ============================
 
 from __future__ import annotations
 
@@ -44,6 +37,9 @@ from reportlab.graphics.shapes import Drawing
 from reportlab.graphics import renderPDF
 
 import image_wash as iw
+
+# --- NEW: Paragraph-based wrapping helper ---
+from text_layout import draw_wrapped_text
 
 # --- PIL Hardening ---
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -91,7 +87,8 @@ def _get_client_ip() -> str:
         headers = _get_websocket_headers()
         if headers:
             xff = headers.get("X-Forwarded-For") or headers.get("x-forwarded-for")
-            if xff: return xff.split(",")[0].strip()
+            if xff:
+                return xff.split(",")[0].strip()
     except Exception:
         pass
     try:
@@ -219,22 +216,22 @@ def _fmt_hour(hour: int) -> str:
     return f"{int(hour):02d}:00"
 
 # =========================================================
-# DYNAMIC QUEST BANK (240 unique quests + fallback)
+# DYNAMIC QUEST BANK (Fallback; quest_data.py optional)
 # =========================================================
 def _build_full_quest_bank():
     bank = {}
     m_titles = ["Start-Kraft", "Rüstung anlegen", "Morgen-Fokus", "Wachmacher", "Sonnen-Sucher", "Frühsport", "Augen auf", "Energie-Tank", "Tag-Blick", "Morgen-Scan"]
     m_moves = ["Mache 10 Kniebeugen.", "20 Sekunden Hampelmann.", "Streck dich so groß du kannst.", "Laufe 10 Sekunden auf der Stelle.", "Hüpfe 5x hoch in die Luft.", "Berühre 10x deine Zehenspitzen.", "Kreise deine Arme wie Windmühlen.", "Mache 5 Froschsprünge.", "Balanciere 10 Sekunden auf einem Bein.", "Mache 3 große Ausfallschritte."]
-    
+
     d_titles = ["Musterjäger", "Adlerauge", "Action-Check", "Spürhund", "Fokus-Meister", "Abenteuer-Blick", "Such-Ninja", "Formen-Ritter", "Tempo-Scan", "Durchblick"]
     d_moves = ["Mache 10 Hampelmänner.", "Hüpfe 10x auf dem rechten Bein.", "Mache 5 Kniebeugen.", "Laufe im Zickzack.", "Dreh dich 5x im Kreis.", "Mache 5 Känguru-Sprünge.", "Balanciere wie ein Flamingo.", "Mache 10 schnelle Schritte auf der Stelle.", "Streck dich und berühre den Boden.", "Mache 3 Sternensprünge."]
-    
+
     e_titles = ["Nacht-Wache", "Ruhe-Check", "Schatten-Jäger", "Leise Pfoten", "Dämmerungs-Blick", "Abend-Fokus", "Sternen-Scanner", "Fokus-Ninja", "Traum-Pfad", "Nacht-Auge"]
     e_moves = ["Stell dich auf die Zehenspitzen und zähle bis 10.", "Bewege dich 10 Sekunden in Zeitlupe.", "Atme 3x tief ein und aus.", "Setz dich in den Schneidersitz.", "Massiere sanft deine Ohren.", "Mache dich ganz klein wie ein Igel.", "Streck dich langsam nach oben.", "Kreise sanft deine Schultern.", "Schließe die Augen und zähle bis 5.", "Stell dich aufrecht hin wie ein Baum."]
-    
+
     n_titles = ["Traum-Fänger", "Stille Wacht", "Nacht-Flug", "Schlaf-Ninja", "Mondlicht-Blick", "Traum-Scan", "Sternen-Staub", "Leise Suche", "Ruhe-Mission", "Nacht-Fokus"]
     n_moves = ["Atme tief in den Bauch.", "Lege dich 10 Sekunden ganz still hin.", "Bewege deine Finger wie Sterne.", "Schließe die Augen und atme.", "Sei so leise wie eine Maus.", "Strecke deine Arme sanft aus.", "Mache ein leises 'Schh'-Geräusch.", "Gähne einmal herzhaft.", "Lächle mit geschlossenen Augen.", "Entspanne deine Schultern."]
-    
+
     proofs = ["Kreise alle Formen ein.", "Male die Sterne gelb aus.", "Setze einen Punkt in jede Form.", "Verbinde die Formen mit einer Linie.", "Zähle laut mit und hake ab.", "Male die Quadrate bunt an.", "Setze einen Haken neben die Dreiecke.", "Male kleine Gesichter in die Formen."]
 
     for h in range(24):
@@ -331,7 +328,6 @@ MAX_WASH_CACHE = 64
 
 BUILD_TAG = "v5.12.0-dual-mode"
 
-# QR target (printed)
 QR_URL = "https://keschflow.github.io/start/"
 QR_TEXT = "keschflow.github.io/start"
 
@@ -456,7 +452,6 @@ def _autoscale_mission_text(mission, w: float, x0: float, pad_x: float, max_card
         need = b_t + (ts * 1.22) + g_t + (ls * 1.22 * 2) + ((len(ml) + len(tl)) * (bs * 1.28)) + g_s + b_b
         return {"ts": ts, "bs": bs, "ls": ls, "tl": ts * 1.22, "bl": bs * 1.28, "ll": ls * 1.22, "ml": ml, "tl_lines": tl, "needed": need}
 
-    # Senior Mode uses larger fonts
     ts, bs, ls = (16, 13, 12) if is_senior else (13, 10, 10)
     min_ts, min_bs, min_ls = (13, 11, 11) if is_senior else (10, 8, 8)
 
@@ -482,6 +477,9 @@ def _fmt_pt(x: float) -> str: return f"{x:.2f} pt"
 def _fmt_xy_in(x_pt: float, y_pt: float) -> str: return f"({_fmt_in(x_pt / inch)}, {_fmt_in(y_pt / inch)})"
 def _fmt_xy_pt(x_pt: float, y_pt: float) -> str: return f"({_fmt_pt(x_pt)}, {_fmt_pt(y_pt)})"
 
+# =========================================================
+# PREFLIGHT PAGES (unchanged)
+# =========================================================
 def _draw_cover_preflight_facts_strip(c, *, cw, ch, trim, bleed, spine_w, build_nonce, paper, back_x, spine_x, front_x, trim_y, barcode_x, barcode_y, barcode_w, barcode_h):
     pad = 0.20 * inch
     x0 = back_x + pad
@@ -769,7 +767,7 @@ def _get_sketch_cached(img_bytes: bytes, target_w: int, target_h: int) -> bytes:
     return out
 
 # =========================================================
-# OVERLAY (QUEST CARD)
+# OVERLAY (QUEST CARD) — PATCHED: Paragraph wrap for movement/thinking/proof
 # =========================================================
 def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is_senior):
     hh = 0.75 * inch
@@ -779,14 +777,13 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
     zone = _get_zone_for_hour(hour)
     z_rgb = _get_hour_color(hour)
 
-    # Header Box
     c.saveState()
     c.setFillColor(colors.Color(z_rgb[0], z_rgb[1], z_rgb[2]))
     c.setStrokeColor(INK_BLACK)
     c.setLineWidth(1)
     c.rect(x0, ytb, w, hh, fill=1, stroke=1)
 
-    # --- Timeline nur für Kinder ---
+    # Timeline only for kid mode
     if not is_senior:
         pad_x = 0.25 * inch
         avail_w = w - 2 * pad_x
@@ -805,17 +802,15 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
                 c.setLineWidth(0.5)
                 c.circle(hx, timeline_y, 2, fill=1, stroke=1)
 
-    # Header Text
     c.setFillColor(colors.white if sum(z_rgb[:3]) < 1.5 else INK_BLACK)
     _set_font(c, True, 14)
     c.drawString(x0 + 0.18 * inch, ytb + hh - 0.48 * inch, f"{_fmt_hour(hour)}  {zone.icon}  {zone.name}")
     _set_font(c, False, 10)
     c.drawString(x0 + 0.18 * inch, ytb + 0.15 * inch, f"{zone.quest_type} • {zone.atmosphere}")
 
-    # Quest Card Box
     cy = stb
     max_ch = ytb - cy - 0.15 * inch
-    
+
     if pre_reader and not is_senior:
         ch, sc = min(max_ch, 2.45 * inch), None
     else:
@@ -828,7 +823,6 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
     yc = cy + ch - 0.18 * inch
     c.setFillColor(INK_BLACK)
 
-    # Quest Content
     if pre_reader and not is_senior:
         _set_font(c, True, 14)
         c.drawString(x0 + 0.18 * inch, yc - 10, _kid_short(mission.title, 3) or "MISSION")
@@ -853,42 +847,88 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
         think_label = "GEDANKEN:" if is_senior else "SUCHEN:"
         proof_label = "ERLEDIGT:" if is_senior else "PROOF:"
 
+        # --- geometry & styles ---
+        pad_left = 0.18 * inch
+        pad_right = 0.18 * inch
+        label_x = x0 + pad_left
+        move_x  = x0 + 1.05 * inch
+        think_x = x0 + 0.90 * inch
+        proof_x = x0 + 1.03 * inch
+
+        move_w  = (x0 + w - pad_right) - move_x
+        think_w = (x0 + w - pad_right) - think_x
+        proof_w = (x0 + w - pad_right) - proof_x
+
+        STYLE_BODY = "SeniorBody" if is_senior else "KidsText"
+
+        # Title (short)
         _set_font(c, True, sc["ts"])
         c.drawString(x0 + 0.18 * inch, yc - sc["tl"] + 2, f"{title_label}: {mission.title}")
-        
+
         if not is_senior:
             _set_font(c, True, max(8, sc["ts"] - 2))
             c.drawRightString(x0 + w - 0.18 * inch, yc - sc["tl"] + 2, f"+{int(mission.xp)} XP")
 
+        # Movement
         yt = yc - sc["tl"] - 0.10 * inch
         _set_font(c, True, sc["ls"])
-        c.drawString(x0 + 0.18 * inch, yt - sc["ll"] + 2, move_label)
-        _set_font(c, False, sc["bs"])
-        yy = yt - sc["ll"] + 2
-        for l in sc["ml"]:
-            c.drawString(x0 + 1.05 * inch, yy, l)
-            yy -= sc["bl"]
+        c.drawString(label_x, yt - sc["ll"] + 2, move_label)
 
-        yt = yy - 0.06 * inch
+        move_top = yt - sc["ll"] + 6
+        move_h = 0.62 * inch if is_senior else 0.58 * inch
+        ok = draw_wrapped_text(
+            c,
+            mission.movement or "",
+            x=move_x,
+            y=move_top,
+            width=move_w,
+            height=move_h,
+            style_name=STYLE_BODY,
+            return_fit=True,
+        )
+        if not ok:
+            raise ValueError("OVERFLOW: movement text does not fit card")
+
+        # Thinking (directly under movement box)
+        yt2 = (move_top - move_h) - 0.10 * inch
         _set_font(c, True, sc["ls"])
-        c.drawString(x0 + 0.18 * inch, yt - sc["ll"] + 2, think_label)
-        _set_font(c, False, sc["bs"])
-        yy = yt - sc["ll"] + 2
-        for l in sc["tl_lines"]:
-            c.drawString(x0 + 0.90 * inch, yy, l)
-            yy -= sc["bl"]
+        c.drawString(label_x, yt2 - sc["ll"] + 2, think_label)
 
+        think_top = yt2 - sc["ll"] + 6
+        think_h = 0.70 * inch if is_senior else 0.66 * inch
+        ok = draw_wrapped_text(
+            c,
+            mission.thinking or "",
+            x=think_x,
+            y=think_top,
+            width=think_w,
+            height=think_h,
+            style_name=STYLE_BODY,
+            return_fit=True,
+        )
+        if not ok:
+            raise ValueError("OVERFLOW: thinking text does not fit card")
+
+        # Proof line
         c.rect(x0 + 0.18 * inch, cy + 0.18 * inch, 0.20 * inch, 0.20 * inch, fill=0, stroke=1)
         _set_font(c, True, sc["ls"])
         c.drawString(x0 + 0.43 * inch, cy + 0.20 * inch, proof_label)
-        _set_font(c, False, sc["bs"])
-        if mission.proof:
-            c.drawString(
-                x0 + 1.03 * inch,
-                cy + 0.20 * inch,
-                _fit_lines(_wrap_text_hard(mission.proof, FONTS["normal"], sc["bs"], w - 1.5 * inch), 1)[0]
-            )
-            
+
+        proof_top = cy + 0.40 * inch
+        proof_h = 0.32 * inch
+        ok = draw_wrapped_text(
+            c,
+            mission.proof or "",
+            x=proof_x,
+            y=proof_top,
+            width=proof_w,
+            height=proof_h,
+            style_name=STYLE_BODY,
+            return_fit=True,
+        )
+        if not ok:
+            raise ValueError("OVERFLOW: proof text does not fit card")
+
         if is_senior:
             _set_font(c, False, 8)
             c.setFillColor(INK_GRAY_70)
@@ -899,7 +939,7 @@ def _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is
     c.restoreState()
 
 # =========================================================
-# COVER COLLAGE
+# COVER COLLAGE (unchanged)
 # =========================================================
 def _cover_collage_png(uploads, size_px: int, seed: int) -> Optional[bytes]:
     files = list(uploads or [])
@@ -989,7 +1029,7 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
         gen = _name_genitive(name)
         c.setFillColor(INK_BLACK)
         _set_font(c, True, 34)
-        
+
         book_title = f"{gen} Tagesbegleiter" if is_senior else f"{gen} Abenteuerbuch"
         subtitle = "24 Stunden • In Ruhe betrachten • Entspannen" if is_senior else "24 Stunden • 24 Mini-Quests • Haken setzen"
 
@@ -1044,7 +1084,7 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
             s_rng = np.random.default_rng(seed)
             m_move = str(s_rng.choice(senior_moves))
             m_think = f"Betrachten Sie das Bild in Ruhe. Entdecken Sie {t_shapes} Details im Bild (Formen oder Objekte) – ohne Zeitdruck."
-            
+
             mission = Mission(
                 title="Aktiv bleiben",
                 xp=0,
@@ -1093,7 +1133,7 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
             )
 
         _draw_quest_overlay(c, pb, sl, sr, stb, hour, mission, debug, pre_reader, is_senior)
-        
+
         if eddie:
             _draw_eddie(c, pb.full_w - sr - 0.18 * inch, stb + 0.18 * inch, 0.18 * inch, style=style)
 
@@ -1102,29 +1142,28 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
         current_page_idx += 1
         gc.collect()
 
-    # OUTRO PAGE (Pure Honesty CTA)
+    # OUTRO PAGE
     sl, sr, stb = safe_margins_for_page(total, kdp, current_page_idx, pb)
     c.setFillColor(colors.white)
     c.rect(0, 0, pb.full_w, pb.full_h, fill=1, stroke=0)
-    
+
     _draw_eddie(c, pb.full_w / 2, pb.full_h - stb - 1.5 * inch, 0.8 * inch, style=style)
-    
+
     c.setFillColor(INK_BLACK)
     _set_font(c, True, 24)
     c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 2.8 * inch, "Dieses Buch wurde generiert.")
-    
+
     _set_font(c, False, 14)
     c.setFillColor(INK_GRAY_70)
     c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 3.4 * inch, "Mit E.P.E. — Eddie's Print Engine.")
     c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 3.7 * inch, "Aus ganz normalen Fotos.")
-    
+
     c.setFillColor(INK_BLACK)
     _set_font(c, True, 15)
     c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 4.6 * inch, "1. Eigene Fotos hochladen.")
     c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 5.0 * inch, "2. Quests & Layout werden automatisch gebaut.")
     c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 5.4 * inch, "3. Als KDP-ready PDF herunterladen.")
-    
-    # Vector QR
+
     qr_code = qr.QrCodeWidget(QR_URL)
     bounds = qr_code.getBounds()
     qr_w = bounds[2] - bounds[0]
@@ -1133,27 +1172,26 @@ def build_interior(name, uploads, kdp, debug, preflight, paper, eddie, style, pr
     scale = qr_size / max(qr_w, qr_h)
     d = Drawing(qr_size, qr_size, transform=[scale, 0, 0, scale, -bounds[0] * scale, -bounds[1] * scale])
     d.add(qr_code)
-    
+
     renderPDF.draw(d, c, (pb.full_w - qr_size) / 2, pb.full_h - stb - 7.65 * inch)
-    
+
     c.setFillColor(INK_BLACK)
     _set_font(c, True, 12)
     c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 8.05 * inch, QR_TEXT)
-    
+
     _set_font(c, False, 11)
     c.setFillColor(INK_GRAY_70)
     c.drawCentredString(pb.full_w / 2, pb.full_h - stb - 8.45 * inch, "3 kostenlose Bücher testen.")
-    
-    # Hard Trust
+
     _set_font(c, True, 12)
     c.setFillColor(INK_BLACK)
     c.drawCentredString(pb.full_w / 2, stb + 1.05 * inch, "Kein Abo. Keine Anmeldung. Nur das Tool.")
-    
+
     if debug:
         _draw_kdp_debug_guides(c, pb, sl, sr, stb)
     _imprint_nonce(c, build_nonce)
     c.showPage()
-    
+
     c.save()
     buf.seek(0)
     return buf.getvalue()
@@ -1173,7 +1211,6 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
     c.setFillColor(colors.white)
     c.rect(0, 0, cw, ch, fill=1, stroke=0)
 
-    # spine background
     c.setFillColor(INK_BLACK)
     c.rect(BLEED + TRIM, BLEED, sw, TRIM, fill=1, stroke=0)
 
@@ -1181,11 +1218,10 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
     spine_x = BLEED + TRIM
     front_x = BLEED + TRIM + sw
     trim_y = BLEED
-    
+
     book_title_cov = "TAGESBEGLEITER" if is_senior else "ABENTEUERBUCH"
     subtitle_cov = "24 Impulse • 24 Stunden • KDP-ready" if is_senior else "24 Missionen • 24 Stunden • KDP-ready"
 
-    # spine text
     if KDP_PAGES_FIXED >= SPINE_TEXT_MIN_PAGES:
         c.saveState()
         c.setFillColor(colors.white)
@@ -1218,7 +1254,6 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
         c.setLineWidth(1)
         c.roundRect(fx + TRIM * 0.10, BLEED + TRIM * 0.74, TRIM * 0.80, TRIM * 0.20, TRIM * 0.04, fill=1, stroke=1)
 
-    # TITLE
     gen = _name_genitive(name)
     c.setFillColor(INK_BLACK)
     _set_font(c, True, 30)
@@ -1230,6 +1265,7 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
     c.drawCentredString(fx + TRIM / 2, BLEED + TRIM * 0.77, "Erstellt mit E. P. E. — Eddie's Print Engine")
     _draw_eddie(c, fx + TRIM / 2, BLEED + TRIM * 0.60, TRIM * 0.14, style=style)
 
+    # Debug / preflight cover markings (unchanged)
     if debug or preflight:
         bc_w, bc_h = 2.0 * inch, 1.2 * inch
         bc_x = BLEED + TRIM - 0.25 * inch - bc_w
@@ -1263,18 +1299,18 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
         )
 
         safe_margin = 0.25 * inch
-        def _safe_box(x0: float, y0: float, w: float, h: float, label: str):
+        def _safe_box(x0b: float, y0b: float, wb: float, hb: float, label: str):
             c.saveState()
             c.setStrokeColor(DEBUG_SAFE_COLOR)
             c.setLineWidth(1)
             c.setDash(3, 3)
-            c.rect(x0, y0, w, h, stroke=1, fill=0)
+            c.rect(x0b, y0b, wb, hb, stroke=1, fill=0)
             c.setDash()
             c.setFillColor(DEBUG_SAFE_COLOR)
             _set_font(c, True, 8)
-            c.drawString(x0 + 0.06 * inch, y0 + h + 0.06 * inch, label)
+            c.drawString(x0b + 0.06 * inch, y0b + hb + 0.06 * inch, label)
             _set_font(c, False, 7)
-            c.drawString(x0 + 0.06 * inch, y0 + h - 0.18 * inch, "SAFE = 0.25\" from TRIM")
+            c.drawString(x0b + 0.06 * inch, y0b + hb - 0.18 * inch, "SAFE = 0.25\" from TRIM")
             c.restoreState()
 
         box_w = TRIM - 2 * safe_margin
@@ -1290,7 +1326,7 @@ def build_cover(name, paper, uploads, style, build_nonce, debug, preflight, is_s
     return buf.getvalue()
 
 # =========================================================
-# UI
+# UI (unchanged except imports already handled)
 # =========================================================
 st.set_page_config(page_title=APP_TITLE, layout="centered", page_icon=APP_ICON)
 
@@ -1367,7 +1403,7 @@ with st.container(border=True):
 
     c1, c2 = st.columns(2)
     name = c1.text_input("Name (für das Cover)", "Eddie")
-    
+
     c2.markdown("**Seitenanzahl**")
     c2.info("📘 Fix 26 Seiten (KDP-Ready)")
     paper = c2.selectbox("Papier", list(PAPER_FACTORS.keys()), 0)
@@ -1437,7 +1473,6 @@ if st.button("🚀 BUCH GENERIEREN", disabled=not (uploads and name), type="prim
         except Exception as e:
             st.error(f"⚠️ Engine gestolpert: `{str(e)}`")
 
-# Downloads
 if st.session_state.assets:
     a = st.session_state.assets
     st.markdown("### 📥 Deine druckfertigen PDFs")
