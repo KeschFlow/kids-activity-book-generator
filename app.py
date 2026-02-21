@@ -280,8 +280,9 @@ MAX_WASH_CACHE = 64
 
 BUILD_TAG = "v6.0.0-clean-core"
 
-QR_URL = "https://keschflow.github.io/start/"
-QR_TEXT = "keschflow.github.io/start"
+QR_URL = ""https://keschflow.github.io/eddies-print-engine/"
+
+QR_TEXT ="https://keschflow.github.io/eddies-print-engine/"
 
 # =========================================================
 # PAGE GEOMETRY
