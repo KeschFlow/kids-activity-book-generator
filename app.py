@@ -1,4 +1,15 @@
-# =========================================================
+## ===== PUBLIC LINK (GLOBAL OVERRIDE) =====
+PUBLIC_URL = "https://keschflow.github.io/eddies-print-engine/"
+
+def fix_public_link(text: str) -> str:
+    if not text:
+        return text
+    return (
+        text
+        .replace("keschflow.github.io/start", PUBLIC_URL)
+        .replace("https://keschflow.github.io/start", PUBLIC_URL)
+        .replace("http://keschflow.github.io/start", PUBLIC_URL)
+    ) =========================================================
 # app.py — E. P. E. Eddie's Print Engine — v6.0.0 (CLEAN CORE)
 #
 # v6 PRINCIPLES:
@@ -1282,6 +1293,20 @@ if st.session_state.assets:
             "E.P.E. Eddie's Print Engine ist ein **Community-Projekt**.\n"
             "Wenn du kannst, hilf uns, die Serverkosten zu tragen:"
         )
-        st.link_button("☕ Spendiere uns einen Kaffee (Werde Unterstützer)", PAYMENT_LINK)
+        st.link_button("☕ Spendiere uns einen Kaffee (Werde Unterstützer)", https://ko-fi.com/eddiesworld)
+# ===== GLOBAL LINK OVERRIDE (PDF SAFE) =====
+try:
+    import quest_data as _qd
 
+    if hasattr(_qd, "PROOFS"):
+        _qd.PROOFS = [p.replace("keschflow.github.io/start",
+                                "keschflow.github.io/eddies-print-engine/")
+                      for p in _qd.PROOFS]
+
+    if hasattr(_qd, "NOTES"):
+        _qd.NOTES = [n.replace("keschflow.github.io/start",
+                               "keschflow.github.io/eddies-print-engine/")
+                     for n in _qd.NOTES]
+except Exception:
+    pass
 st.markdown("<div style='text-align:center; color:grey; margin-top: 50px;'>Eddies World © 2026 • Ein Projekt für jedes Kind (und jeden Senior).</div>", unsafe_allow_html=True)
