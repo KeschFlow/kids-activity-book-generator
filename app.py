@@ -9,7 +9,7 @@ def fix_public_link(text: str) -> str:
         .replace("keschflow.github.io/start", PUBLIC_URL)
         .replace("https://keschflow.github.io/start", PUBLIC_URL)
         .replace("http://keschflow.github.io/start", PUBLIC_URL)
-    ) =========================================================
+    )
 # app.py — E. P. E. Eddie's Print Engine — v6.0.0 (CLEAN CORE)
 #
 # v6 PRINCIPLES:
