@@ -1,3 +1,4 @@
+from __future__ import annotations
 ## ===== PUBLIC LINK (GLOBAL OVERRIDE) =====
 PUBLIC_URL = "https://keschflow.github.io/eddies-print-engine/"
 
@@ -25,7 +26,7 @@ def fix_public_link(text: str) -> str:
 # - QUALITY GATE: text overflow -> hard ValueError (crash build)
 # =========================================================
 
-from __future__ import annotations
+
 
 import io
 import os
